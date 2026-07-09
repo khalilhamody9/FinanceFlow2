@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  Fingerprint,
   Sparkles,
   ArrowUpRight,
   Activity,
@@ -20,13 +19,13 @@ const VIOLET = "#8B5CF6";
 const SLATE_LIGHT = "#B9C2D6";
 const SLATE_MUTE = "#7C879E";
 
-export default function Home() {
+export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/dashboard");
+    router.replace("/dashboard");
   };
 
   return (
@@ -48,93 +47,35 @@ export default function Home() {
             linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
           background-size: 34px 34px;
         }
-        @keyframes adv-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes adv-pulse {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,211,238,0.5); }
-          50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34,211,238,0); }
-        }
-        @keyframes adv-dash {
-          to { stroke-dashoffset: -200; }
-        }
+        @keyframes adv-float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        @keyframes adv-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,211,238,0.5); } 50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34,211,238,0); } }
+        @keyframes adv-dash { to { stroke-dashoffset: -200; } }
         .adv-card-1 { animation: adv-float 6s ease-in-out infinite; }
         .adv-card-2 { animation: adv-float 7s ease-in-out infinite; animation-delay: .6s; }
         .adv-dot { animation: adv-pulse 2.2s ease-in-out infinite; }
         .adv-line { stroke-dasharray: 6 6; animation: adv-dash 6s linear infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          .adv-card-1, .adv-card-2, .adv-dot, .adv-line { animation: none; }
-        }
-        .adv-input {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.09);
-          transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
-        }
-        .adv-input:focus {
-          outline: none;
-          border-color: rgba(59,130,246,0.6);
-          background: rgba(255,255,255,0.06);
-          box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
-        }
-        .adv-btn {
-          background: linear-gradient(135deg, ${BLUE}, ${VIOLET});
-          transition: box-shadow .25s ease, transform .15s ease, filter .2s ease;
-          box-shadow: 0 8px 24px -8px rgba(59,130,246,0.55);
-        }
+        @media (prefers-reduced-motion: reduce) { .adv-card-1, .adv-card-2, .adv-dot, .adv-line { animation: none; } }
+        .adv-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+        .adv-input:focus { outline: none; border-color: rgba(59,130,246,0.6); background: rgba(255,255,255,0.06); box-shadow: 0 0 0 4px rgba(59,130,246,0.12); }
+        .adv-btn { background: linear-gradient(135deg, ${BLUE}, ${VIOLET}); transition: box-shadow .25s ease, transform .15s ease, filter .2s ease; box-shadow: 0 8px 24px -8px rgba(59,130,246,0.55); }
         .adv-btn:hover { filter: brightness(1.08); box-shadow: 0 10px 30px -6px rgba(139,92,246,0.6); }
         .adv-btn:active { transform: scale(0.98); }
-        .adv-ghost {
-          border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(255,255,255,0.03);
-          transition: border-color .2s ease, background .2s ease;
-        }
-        .adv-ghost:hover { border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.06); }
         .adv-link { color: ${CYAN}; }
         .adv-link:hover { text-decoration: underline; }
-        .adv-focusable:focus-visible {
-          outline: 2px solid ${CYAN};
-          outline-offset: 2px;
-        }
+        .adv-focusable:focus-visible { outline: 2px solid ${CYAN}; outline-offset: 2px; }
       `}</style>
 
-      {/* זוהר רקע */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-24 right-[-10%] h-[420px] w-[420px] rounded-full"
-        style={{ background: BLUE, opacity: 0.16, filter: "blur(110px)" }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-[-15%] left-[-8%] h-[380px] w-[380px] rounded-full"
-        style={{ background: VIOLET, opacity: 0.14, filter: "blur(110px)" }}
-      />
+      <div aria-hidden="true" className="pointer-events-none absolute -top-24 right-[-10%] h-[420px] w-[420px] rounded-full" style={{ background: BLUE, opacity: 0.16, filter: "blur(110px)" }} />
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-[-15%] left-[-8%] h-[380px] w-[380px] rounded-full" style={{ background: VIOLET, opacity: 0.14, filter: "blur(110px)" }} />
 
       <div className="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center">
-        <main
-          className="grid w-full max-w-5xl overflow-hidden lg:grid-cols-2"
-          style={{
-            borderRadius: "26px",
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.025)",
-            backdropFilter: "blur(20px)",
-            boxShadow: "0 40px 80px -30px rgba(0,0,0,0.7)",
-          }}
-        >
-          {/* צד שמאל — לוח נתונים חי */}
+        <main className="grid w-full max-w-5xl overflow-hidden lg:grid-cols-2" style={{ borderRadius: "26px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.025)", backdropFilter: "blur(20px)", boxShadow: "0 40px 80px -30px rgba(0,0,0,0.7)" }}>
           <section className="adv-grid relative hidden min-h-[700px] flex-col justify-between overflow-hidden p-10 lg:flex">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0"
-              style={{ background: "linear-gradient(180deg, rgba(6,11,24,0) 0%, rgba(6,11,24,0.55) 100%)" }}
-            />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(6,11,24,0) 0%, rgba(6,11,24,0.55) 100%)" }} />
 
             <div className="relative z-10 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div
-                  className="flex h-10 w-10 items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${BLUE}, ${VIOLET})`, borderRadius: "10px" }}
-                >
+                <div className="flex h-10 w-10 items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${VIOLET})`, borderRadius: "10px" }}>
                   <Activity size={19} color="#fff" />
                 </div>
                 <div>
@@ -143,30 +84,20 @@ export default function Home() {
                 </div>
               </div>
 
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium"
-                style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: "999px", color: "#C4B5FD" }}
-              >
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium" style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: "999px", color: "#C4B5FD" }}>
                 <Sparkles size={12} />
                 <span>מונע בינה מלאכותית</span>
               </div>
             </div>
 
             <div className="relative z-10 mt-8">
-              <h2 className="max-w-sm text-3xl font-bold leading-[1.35] text-white">
-                כל הנתונים הפיננסיים שלך, בזמן אמת.
-              </h2>
+              <h2 className="max-w-sm text-3xl font-bold leading-[1.35] text-white">כל הנתונים הפיננסיים שלך, בזמן אמת.</h2>
               <p className="mt-3 max-w-xs text-sm leading-7" style={{ color: SLATE_LIGHT }}>
-                מעקב חכם אחרי תזרים, חשבוניות ומשימות פתוחות — מסונכרן
-                ומעודכן בכל רגע.
+                מעקב חכם אחרי תזרים, חשבוניות ומשימות פתוחות — מסונכרן ומעודכן בכל רגע.
               </p>
             </div>
 
-            {/* גרף חי */}
-            <div
-              className="adv-card-1 relative z-10 mt-8 p-5"
-              style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "16px" }}
-            >
+            <div className="adv-card-1 relative z-10 mt-8 p-5" style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "16px" }}>
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: SLATE_LIGHT }}>תזרים חודשי</span>
                 <span className="adv-mono flex items-center gap-1 text-xs font-medium" style={{ color: "#5EEAD4" }}>
@@ -186,33 +117,19 @@ export default function Home() {
                   </linearGradient>
                 </defs>
                 <path d="M0 50 L35 42 L70 48 L105 28 L140 34 L175 14 L210 20 L260 4 L260 70 L0 70 Z" fill="url(#advFill)" />
-                <path
-                  className="adv-line"
-                  d="M0 50 L35 42 L70 48 L105 28 L140 34 L175 14 L210 20 L260 4"
-                  stroke="url(#advLine)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path className="adv-line" d="M0 50 L35 42 L70 48 L105 28 L140 34 L175 14 L210 20 L260 4" stroke="url(#advLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
 
-            {/* שבבי סטטוס */}
             <div className="relative z-10 mt-4 flex gap-3">
-              {/* <div
-                className="adv-card-2 flex flex-1 items-center gap-2.5 px-4 py-3"
-                style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px" }}
-              >
+              <div className="adv-card-2 flex flex-1 items-center gap-2.5 px-4 py-3" style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px" }}>
                 <span className="adv-dot inline-block h-2 w-2 rounded-full" style={{ background: CYAN }} />
                 <div>
                   <p className="adv-mono text-sm font-medium text-white">312</p>
                   <p className="text-[11px]" style={{ color: SLATE_MUTE }}>חשבוניות סונכרנו</p>
                 </div>
-              </div> */}
-              <div
-                className="flex flex-1 items-center gap-2.5 px-4 py-3"
-                style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px" }}
-              >
+              </div>
+              <div className="flex flex-1 items-center gap-2.5 px-4 py-3" style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px" }}>
                 <ShieldCheck size={16} style={{ color: "#5EEAD4" }} />
                 <div>
                   <p className="text-sm font-medium text-white">מאובטח</p>
@@ -222,51 +139,28 @@ export default function Home() {
             </div>
           </section>
 
-          {/* צד ימין — כניסה */}
           <section className="flex min-h-[700px] flex-col justify-center p-8 sm:p-12 lg:p-16">
             <div className="mx-auto w-full max-w-sm">
               <div className="mb-9 text-center lg:text-right">
                 <h2 className="text-3xl font-bold text-white">ברוכים הבאים</h2>
-                <p className="mt-2 text-sm" style={{ color: SLATE_MUTE }}>
-                  התחברו כדי להמשיך למערכת
-                </p>
+                <p className="mt-2 text-sm" style={{ color: SLATE_MUTE }}>התחברו כדי להמשיך למערכת</p>
               </div>
 
               <form className="space-y-5" onSubmit={handleSubmit}>
                 <div>
-                  <label htmlFor="username" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>
-                    שם משתמש
-                  </label>
+                  <label htmlFor="username" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>שם משתמש</label>
                   <div className="relative flex items-center">
                     <User size={17} className="absolute right-3.5" style={{ color: SLATE_MUTE }} />
-                    <input
-                      id="username"
-                      type="text"
-                      placeholder="הזן שם משתמש"
-                      className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-4 text-sm text-white placeholder:text-[#5B6479]"
-                    />
+                    <input id="username" type="text" placeholder="הזן שם משתמש" className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-4 text-sm text-white placeholder:text-[#5B6479]" />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>
-                    סיסמה
-                  </label>
+                  <label htmlFor="password" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>סיסמה</label>
                   <div className="relative flex items-center">
                     <Lock size={17} className="absolute right-3.5" style={{ color: SLATE_MUTE }} />
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="הזן סיסמה"
-                      className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-11 text-sm text-white placeholder:text-[#5B6479]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="adv-focusable absolute left-3.5"
-                      style={{ color: SLATE_MUTE }}
-                      aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
-                    >
+                    <input id="password" type={showPassword ? "text" : "password"} placeholder="הזן סיסמה" className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-11 text-sm text-white placeholder:text-[#5B6479]" />
+                    <button type="button" onClick={() => setShowPassword((v) => !v)} className="adv-focusable absolute left-3.5" style={{ color: SLATE_MUTE }} aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}>
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
@@ -280,9 +174,7 @@ export default function Home() {
                   <a href="#" className="adv-link text-sm font-medium">שכחתי סיסמה</a>
                 </div>
 
-                <button type="submit" className="adv-btn w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white">
-                  התחברות
-                </button>
+                <button type="submit" className="adv-btn w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white">התחברות</button>
               </form>
 
               <div className="mt-8 flex items-start justify-center gap-2 text-center text-xs leading-6" style={{ color: SLATE_MUTE }}>
