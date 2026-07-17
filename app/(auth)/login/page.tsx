@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
 import {
   User,
   Lock,
@@ -21,13 +23,100 @@ const SLATE_MUTE = "#7C879E";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+const [identifier, setIdentifier] = useState("");
+const [password, setPassword] = useState("");
+const [showPassword, setShowPassword] = useState(false);
+const [loading, setLoading] = useState(false);
+const [errorMessage, setErrorMessage] = useState("");
+const handleSubmit = async (
+  e: React.FormEvent<HTMLFormElement>
+) => {
+  e.preventDefault();
+
+  setLoading(true);
+  setErrorMessage("");
+
+  const supabase = createClient();
+
+  try {
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email: identifier.trim(),
+        password,
+      });
+
+    console.log("LOGIN RESULT:", {
+      user: data.user,
+      error,
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (!data.user || !data.session) {
+      setErrorMessage("המשתמש לא קיים או שהסיסמה שגויה");
+      return;
+    }
+
+const { data: profile, error: profileError } =
+  await supabase
+    .from("profiles")
+    .select(
+      "id, organization_id, full_name, role, is_active"
+    )
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+console.log("AUTH USER ID:", data.user.id);
+console.log("PROFILE:", profile);
+console.log("PROFILE ERROR:", profileError);
+
+if (profileError) {
+  console.error("PROFILE ERROR:", profileError);
+
+  await supabase.auth.signOut();
+
+  setErrorMessage(
+    `שגיאה בקריאת הפרופיל: ${profileError.message}`
+  );
+
+  return;
+}
+
+if (!profile) {
+  await supabase.auth.signOut();
+
+  setErrorMessage(
+    "ההתחברות הצליחה, אבל הפרופיל של המשתמש לא נמצא"
+  );
+
+  return;
+}
+
+    if (!profile.is_active) {
+      await supabase.auth.signOut();
+      setErrorMessage("המשתמש אינו פעיל");
+      return;
+    }
+
+    if (!profile.organization_id) {
+      await supabase.auth.signOut();
+      setErrorMessage("המשתמש אינו משויך למשרד");
+      return;
+    }
+
     router.replace("/dashboard");
-  };
-
+    router.refresh();
+  } catch (error) {
+    console.error(error);
+    setErrorMessage("אירעה שגיאה בכניסה");
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div
       dir="rtl"
@@ -147,11 +236,28 @@ export default function LoginPage() {
               </div>
 
               <form className="space-y-5" onSubmit={handleSubmit}>
+                {errorMessage ? (
+                  <div className="rounded-2xl border border-red-500 bg-red-500/10 p-4 text-sm text-red-200">
+                    {errorMessage}
+                  </div>
+                ) : null}
+
                 <div>
-                  <label htmlFor="username" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>שם משתמש</label>
+                  <label htmlFor="identifier" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>
+                    שם משתמש או אימייל
+                  </label>
                   <div className="relative flex items-center">
                     <User size={17} className="absolute right-3.5" style={{ color: SLATE_MUTE }} />
-                    <input id="username" type="text" placeholder="הזן שם משתמש" className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-4 text-sm text-white placeholder:text-[#5B6479]" />
+                    <input
+                      id="identifier"
+                      type="text"
+                      autoComplete="username"
+                      placeholder="הזן שם משתמש או אימייל"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-4 text-sm text-white placeholder:text-[#5B6479]"
+                      required
+                    />
                   </div>
                 </div>
 
@@ -159,7 +265,16 @@ export default function LoginPage() {
                   <label htmlFor="password" className="mb-2 block text-sm font-medium" style={{ color: SLATE_LIGHT }}>סיסמה</label>
                   <div className="relative flex items-center">
                     <Lock size={17} className="absolute right-3.5" style={{ color: SLATE_MUTE }} />
-                    <input id="password" type={showPassword ? "text" : "password"} placeholder="הזן סיסמה" className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-11 text-sm text-white placeholder:text-[#5B6479]" />
+<input
+  id="password"
+  type={showPassword ? "text" : "password"}
+  autoComplete="current-password"
+  placeholder="הזן סיסמה"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  className="adv-input adv-focusable w-full rounded-xl py-3 pr-11 pl-11 text-sm text-white placeholder:text-[#5B6479]"
+  required
+/>
                     <button type="button" onClick={() => setShowPassword((v) => !v)} className="adv-focusable absolute left-3.5" style={{ color: SLATE_MUTE }} aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}>
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
@@ -174,7 +289,13 @@ export default function LoginPage() {
                   <a href="#" className="adv-link text-sm font-medium">שכחתי סיסמה</a>
                 </div>
 
-                <button type="submit" className="adv-btn w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white">התחברות</button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="adv-btn w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "מתחבר..." : "התחברות"}
+                </button>
               </form>
 
               <div className="mt-8 flex items-start justify-center gap-2 text-center text-xs leading-6" style={{ color: SLATE_MUTE }}>
