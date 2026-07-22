@@ -16,7 +16,7 @@ import {
 const INK = "#1B1E2E";
 const SLATE = "#6B7280";
 const MUTE = "#9CA1B0";
-const NAVY_STRIP = "#232A4A";
+const NAVY_STRIP = "#25294A";
 const INDIGO = "#5B4FE8";
 const INDIGO_SOFT = "#EEECFD";
 const BORDER = "#ECEDF5";
@@ -93,18 +93,16 @@ export function DashboardShell({
   return (
     <div
       dir="rtl"
+      className="dash-shell-root"
       style={{
-        background: "#F7F7FB",
-        fontFamily: "'Heebo', sans-serif",
+        background: "#F5F7FB",
         minHeight: "100vh",
-        paddingRight: "76px",
+        paddingRight: "88px",
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;600&family=Heebo:wght@300;400;500;600;700&display=swap');
-
         .ff-serif {
-          font-family: 'Frank Ruhl Libre', serif;
+          font-family: Georgia, serif;
         }
 
         .dash-strip-btn {
@@ -126,11 +124,13 @@ export function DashboardShell({
         .dash-nav-link {
           color: ${SLATE};
           position: relative;
-          transition: color 0.2s ease, background 0.2s ease;
+          transition: color 0.2s ease, background 0.2s ease, transform .2s ease;
         }
 
         .dash-nav-link:hover {
-          color: ${INK};
+          color: ${INDIGO};
+          background: #F5F4FF;
+          transform: translateY(-1px);
         }
 
         .dash-focusable:focus-visible {
@@ -139,7 +139,7 @@ export function DashboardShell({
         }
 
         .dash-search {
-          background: #F2F2F8;
+          background: #F6F7FB;
           border: 1px solid transparent;
           transition: border-color 0.2s ease, background 0.2s ease;
         }
@@ -147,7 +147,10 @@ export function DashboardShell({
         .dash-search:focus-within {
           border-color: ${INDIGO};
           background: #FFFFFF;
+          box-shadow: 0 0 0 3px rgba(91,79,232,.09);
         }
+
+        .dash-shell-main { min-width: 0; }
 
         @media (max-width: 1100px) {
           .dash-top-nav {
@@ -159,20 +162,32 @@ export function DashboardShell({
             display: none;
           }
         }
+
+        @media (max-width: 760px) {
+          .dash-shell-root { padding-right: 0 !important; padding-bottom: 70px; }
+          .dash-side-bar { inset: auto 0 0 0 !important; width: 100% !important; height: 64px; flex-direction: row !important; padding: 8px 14px !important; border-radius: 18px 18px 0 0; }
+          .dash-side-bar > div { flex-direction: row !important; gap: 12px !important; }
+          .dash-side-bar > div > div:first-child { display: none; }
+          .dash-side-bar > div > div:last-child { flex-direction: row !important; }
+          .dash-header-inner { padding-inline: 14px !important; }
+          .dash-user-meta, .dash-notifications { display: none !important; }
+        }
       `}</style>
 
       {/* תפריט צדדי */}
       <aside
-        className="fixed inset-y-0 right-0 z-20 flex w-[76px] flex-col items-center justify-between py-6"
-        style={{ background: NAVY_STRIP }}
+        className="dash-side-bar fixed inset-y-0 right-0 z-20 flex w-[88px] flex-col items-center justify-between py-6"
+        style={{ background: `linear-gradient(180deg, ${NAVY_STRIP}, #303765 62%, #3A4390)` , boxShadow: "-8px 0 30px rgba(26,31,67,.12)" }}
       >
         <div className="flex flex-col items-center gap-8">
           <div
-            className="ff-serif flex h-11 w-11 items-center justify-center text-sm font-bold"
+            className="ff-serif flex h-12 w-12 items-center justify-center text-base font-bold"
             style={{
               border: "1.5px solid rgba(255,255,255,0.45)",
-              borderRadius: "50%",
+              borderRadius: "15px",
               color: "#FFFFFF",
+              background: "rgba(255,255,255,.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,.16)",
             }}
           >
             {initials}
@@ -190,9 +205,9 @@ export function DashboardShell({
                   title={label}
                   className="dash-side-icon dash-focusable flex h-11 w-11 items-center justify-center"
                   style={{
-                    borderRadius: "12px",
+                    borderRadius: "13px",
                     background: isActive
-                      ? "rgba(255,255,255,0.14)"
+                      ? "rgba(255,255,255,0.18)"
                       : "transparent",
                   }}
                 >
@@ -226,15 +241,16 @@ export function DashboardShell({
         className="sticky top-0 z-10 border-b bg-white/95"
         style={{
           borderColor: BORDER,
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(16px)",
+          boxShadow: "0 4px 20px rgba(42,47,81,.035)",
         }}
       >
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6 px-8 py-3.5">
+        <div className="dash-header-inner mx-auto flex max-w-[1540px] items-center justify-between gap-6 px-8 py-3.5">
           <nav className="dash-top-nav flex items-center gap-2">
             <Link
               href="/dashboard"
               className={[
-                "dash-nav-link dash-focusable rounded-[10px] px-4 py-2 text-sm font-medium",
+                "dash-nav-link dash-focusable rounded-xl px-4 py-2 text-sm font-medium",
                 pathname === "/dashboard"
                   ? "bg-[#EEECFD] font-semibold text-[#5B4FE8]"
                   : "",
@@ -254,7 +270,7 @@ export function DashboardShell({
                   key={item.href}
                   href={item.href}
                   className={[
-                    "dash-nav-link dash-focusable rounded-[10px] px-4 py-2 text-sm font-medium",
+                    "dash-nav-link dash-focusable rounded-xl px-4 py-2 text-sm font-medium",
                     isActive
                       ? "bg-[#EEECFD] font-semibold text-[#5B4FE8]"
                       : "",
@@ -284,7 +300,7 @@ export function DashboardShell({
 
             <button
               type="button"
-              className="dash-focusable relative flex h-10 w-10 items-center justify-center rounded-full"
+              className="dash-notifications dash-focusable relative flex h-10 w-10 items-center justify-center rounded-xl"
               style={{ background: "#F2F2F8" }}
               aria-label="התראות"
             >
@@ -297,7 +313,7 @@ export function DashboardShell({
             </button>
 
             <div
-              className="flex items-center gap-3 border-r pr-4"
+              className="dash-user-meta flex items-center gap-3 border-r pr-4"
               style={{ borderColor: BORDER }}
             >
               <div className="text-right">
@@ -314,7 +330,7 @@ export function DashboardShell({
               </div>
 
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold"
                 style={{
                   background: INDIGO_SOFT,
                   color: INDIGO,
@@ -327,7 +343,7 @@ export function DashboardShell({
         </div>
       </header>
 
-      {children}
+      <div className="dash-shell-main">{children}</div>
     </div>
   );
 }

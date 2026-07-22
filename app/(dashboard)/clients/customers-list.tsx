@@ -17,6 +17,7 @@ import {
   Building2,
   FolderOpen,
   StickyNote,
+  CreditCard,
 } from "lucide-react";
 
 type Customer = {
@@ -39,9 +40,24 @@ type Customer = {
   vat_report_type: string | null;
   income_tax_file: string | null;
   deductions_file: string | null;
-  national_insurance_file: string | null;
+  vat_file: string | null;
+  po_box: string | null;
+  occupation: string | null;
+  score: number | null;
+  has_inventory: boolean;
+  is_detailed: boolean;
+  has_audit: boolean;
+  has_fuel: boolean;
+  has_856: boolean;
+  has_capital_declaration: boolean;
+  has_pension: boolean;
+  has_benefit: boolean;
+
   status: string | null;
   notes: string | null;
+  fee_amount: number | null;
+payment_method: string | null;
+payment_frequency: string | null;
 };
 
 type NewCustomerForm = {
@@ -63,9 +79,23 @@ type NewCustomerForm = {
   vatReportType: string;
   incomeTaxFile: string;
   deductionsFile: string;
-  nationalInsuranceFile: string;
-  status: string;
+  vatFile: string;
+  poBox: string;
+  occupation: string;
+  score: string; status: string;
   notes: string;
+    feeAmount: string;
+paymentMethod: string;
+paymentFrequency: string;
+  hasInventory: boolean;
+  isDetailed: boolean;
+  hasAudit: boolean;
+  hasFuel: boolean;
+  has856: boolean;
+  hasCapitalDeclaration: boolean;
+  hasPension: boolean;
+  hasBenefit: boolean;
+
 };
 
 type CustomersListProps = {
@@ -92,9 +122,23 @@ const EMPTY_CUSTOMER_FORM: NewCustomerForm = {
   vatReportType: "",
   incomeTaxFile: "",
   deductionsFile: "",
-  nationalInsuranceFile: "",
-  status: "active",
+  vatFile: "",
+  poBox: "",
+  occupation: "",
+  score: "0", status: "active",
   notes: "",
+  feeAmount: "",
+paymentMethod: "",
+paymentFrequency: "",
+  hasInventory: false,
+  isDetailed: false,
+  hasAudit: false,
+  hasFuel: false,
+  has856: false,
+  hasCapitalDeclaration: false,
+  hasPension: false,
+  hasBenefit: false,
+  
 };
 
 const INK = "#1B1E2E";
@@ -122,7 +166,16 @@ const TAGS = [
   "פנסיה ד.א",
   "בנפיט",
 ];
-
+const TAG_FIELD_MAP: Record<string, keyof Customer> = {
+  מלאי: "has_inventory",
+  מפורט: "is_detailed",
+  ביקורת: "has_audit",
+  סולר: "has_fuel",
+  "856": "has_856",
+  "ה.הון": "has_capital_declaration",
+  "פנסיה ד.א": "has_pension",
+  בנפיט: "has_benefit",
+};
 const COLUMNS = [
   "מס׳ תיק",
   "שם",
@@ -153,8 +206,7 @@ export default function CustomersList({
   const [formError, setFormError] = useState("");
   const [newCustomer, setNewCustomer] =
     useState<NewCustomerForm>(EMPTY_CUSTOMER_FORM);
-
-  const loadCustomers = useCallback(async () => {
+const [activeTags, setActiveTags] = useState<string[]>([]);  const loadCustomers = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
@@ -180,8 +232,21 @@ export default function CustomersList({
         vat_report_type,
         income_tax_file,
         deductions_file,
-        national_insurance_file,
-        status,
+vat_file,
+po_box,
+occupation,
+score,        status,
+fee_amount,
+payment_method,
+payment_frequency,
+has_inventory,
+is_detailed,
+has_audit,
+has_fuel,
+has_856,
+has_capital_declaration,
+has_pension,
+has_benefit,
         notes
       `)
       .eq("organization_id", organizationId)
@@ -258,8 +323,21 @@ export default function CustomersList({
         vat_report_type: newCustomer.vatReportType || null,
         income_tax_file: newCustomer.incomeTaxFile.trim() || null,
         deductions_file: newCustomer.deductionsFile.trim() || null,
-        national_insurance_file:
-          newCustomer.nationalInsuranceFile.trim() || null,
+        vat_file: newCustomer.vatFile.trim() || null,
+        po_box: newCustomer.poBox.trim() || null,
+        occupation: newCustomer.occupation.trim() || null,
+        score: Number(newCustomer.score) || 0,
+        fee_amount: Number(newCustomer.feeAmount) || 0,
+payment_method: newCustomer.paymentMethod || null,
+payment_frequency: newCustomer.paymentFrequency || null,
+        has_inventory: newCustomer.hasInventory,
+        is_detailed: newCustomer.isDetailed,
+        has_audit: newCustomer.hasAudit,
+        has_fuel: newCustomer.hasFuel,
+        has_856: newCustomer.has856,
+        has_capital_declaration: newCustomer.hasCapitalDeclaration,
+        has_pension: newCustomer.hasPension,
+        has_benefit: newCustomer.hasBenefit,
         status: newCustomer.status,
         notes: newCustomer.notes.trim() || null,
       })
@@ -283,8 +361,21 @@ export default function CustomersList({
         vat_report_type,
         income_tax_file,
         deductions_file,
-        national_insurance_file,
-        status,
+vat_file,
+po_box,
+occupation,
+score,        
+fee_amount,
+payment_method,
+payment_frequency,
+has_inventory,
+is_detailed,
+has_audit,
+has_fuel,
+has_856,
+has_capital_declaration,
+has_pension,
+has_benefit,status,
         notes
       `)
       .single();
@@ -320,7 +411,7 @@ export default function CustomersList({
 
   function updateNewCustomer(
     field: keyof NewCustomerForm,
-    value: string,
+    value: string | boolean,
   ) {
     setNewCustomer((currentCustomer) => ({
       ...currentCustomer,
@@ -331,7 +422,27 @@ export default function CustomersList({
   function isActiveCustomer(status: string | null) {
     return status?.toLowerCase() === "active";
   }
+const filteredCustomers = useMemo(() => {
+  if (activeTags.length === 0) {
+    return customers;
+  }
 
+  return customers.filter((customer) =>
+    activeTags.every((tag) => {
+      if (tag === "פעיל") {
+        return customer.status?.toLowerCase() === "active";
+      }
+
+      const field = TAG_FIELD_MAP[tag];
+
+      if (!field) {
+        return true;
+      }
+
+      return customer[field] === true;
+    }),
+  );
+}, [customers, activeTags]);
   return (
     <DashboardShell userName={userName}>
       <main className="mx-auto max-w-[1440px] px-8 py-8">
@@ -473,25 +584,37 @@ export default function CustomersList({
             </button>
 
             <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-              {TAGS.map((tag) => (
-                <button
-                  type="button"
-                  key={tag}
-                  className="px-3.5 py-1.5 text-xs font-medium"
-                  style={{
-                    borderRadius: "8px",
-                    color: SLATE,
-                    background: "#FFFFFF",
-                    border: `1px solid ${BORDER}`,
-                  }}
-                >
-                  {tag}
-                </button>
-              ))}
+{TAGS.map((tag) => {
+  const isSelected = activeTags.includes(tag);
+
+  return (
+    <button
+      type="button"
+      key={tag}
+      onClick={() =>
+        setActiveTags((currentTags) =>
+          currentTags.includes(tag)
+            ? currentTags.filter((currentTag) => currentTag !== tag)
+            : [...currentTags, tag],
+        )
+      }
+      className="px-3.5 py-1.5 text-xs font-medium transition-colors"
+      style={{
+        borderRadius: "8px",
+        color: isSelected ? "#FFFFFF" : SLATE,
+        background: isSelected ? INDIGO : "#FFFFFF",
+        border: `1px solid ${isSelected ? INDIGO : BORDER}`,
+      }}
+    >
+      {tag}
+    </button>
+  );
+})}
             </div>
           </div>
 
           {/* טבלת לקוחות */}
+          
           {loading ? (
             <div className="py-10 text-center text-sm" style={{ color: MUTE }}>
               טוען לקוחות...
@@ -507,9 +630,26 @@ export default function CustomersList({
             >
               {errorMessage}
             </div>
-          ) : customers.length === 0 ? (
+          ) : filteredCustomers.length === 0 ? (
             <div className="py-12 text-center text-sm" style={{ color: MUTE }}>
-              לא נמצאו לקוחות השייכים למשרד שלך.
+{activeTags.length > 0
+  ? `לא נמצאו לקוחות עם המאפיינים: ${activeTags.join(", ")}.`
+  : "לא נמצאו לקוחות השייכים למשרד שלך."}
+  {activeTags.length > 0 && (
+  <button
+    type="button"
+    onClick={() => setActiveTags([])}
+    className="px-3.5 py-1.5 text-xs font-medium"
+    style={{
+      borderRadius: "8px",
+      color: "#B42318",
+      background: "#FEF3F2",
+      border: "1px solid #FECDCA",
+    }}
+  >
+    נקה סינון
+  </button>
+)}
             </div>
           ) : (
             <>
@@ -550,7 +690,7 @@ export default function CustomersList({
                   </thead>
 
                   <tbody>
-                    {customers.map((customer, index) => (
+                    {filteredCustomers.map((customer, index) => (
                       <tr key={customer.id}>
                         <td
                           className="p-3"
@@ -589,7 +729,7 @@ export default function CustomersList({
                             borderBottom: `1px solid ${BORDER}`,
                           }}
                         >
-                          {customer.business_name || "—"}
+                          {customer.occupation || "—"}
                         </td>
 
                         <td
@@ -619,7 +759,7 @@ export default function CustomersList({
                             borderBottom: `1px solid ${BORDER}`,
                           }}
                         >
-                          {customer.business_number || "—"}
+                          {customer.vat_file || "—"}
                         </td>
 
                         <td
@@ -670,8 +810,7 @@ export default function CustomersList({
               </div>
 
               <div className="mt-4 text-sm" style={{ color: MUTE }}>
-                מספר שורות: {customers.length}
-              </div>
+                מספר שורות: {filteredCustomers.length}              </div>
             </>
           )}
         </div>
@@ -876,6 +1015,16 @@ export default function CustomersList({
                     style={inputStyle}
                   />
                 </FormField>
+                <FormField label="תיבת דואר">
+                  <input
+                    value={newCustomer.poBox}
+                    onChange={(event) =>
+                      updateNewCustomer("poBox", event.target.value)
+                    }
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={inputStyle}
+                  />
+                </FormField>
               </FormSection>
 
               <FormSection
@@ -895,7 +1044,16 @@ export default function CustomersList({
                     style={inputStyle}
                   />
                 </FormField>
-
+                <FormField label="עיסוק">
+                  <input
+                    value={newCustomer.occupation}
+                    onChange={(event) =>
+                      updateNewCustomer("occupation", event.target.value)
+                    }
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={inputStyle}
+                  />
+                </FormField>
                 <FormField label="סוג עוסק">
                   <select
                     value={newCustomer.businessType}
@@ -999,18 +1157,17 @@ export default function CustomersList({
                   />
                 </FormField>
 
-                <FormField label="תיק ביטוח לאומי">
-                  <input
-                    value={newCustomer.nationalInsuranceFile}
-                    onChange={(event) =>
-                      updateNewCustomer(
-                        "nationalInsuranceFile",
-                        event.target.value,
-                      )
-                    }
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={inputStyle}
-                  />
+                <FormField label='תיק מע"מ'>                  <input
+                  value={newCustomer.vatFile}
+                  onChange={(event) =>
+                    updateNewCustomer(
+                      "vatFile",
+                      event.target.value,
+                    )
+                  }
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                  style={inputStyle}
+                />
                 </FormField>
 
                 <FormField label="סטטוס">
@@ -1026,8 +1183,141 @@ export default function CustomersList({
                     <option value="inactive">לא פעיל</option>
                   </select>
                 </FormField>
+                <FormField label="ניקוד">
+                  <input
+                    type="number"
+                    min="0"
+                    value={newCustomer.score}
+                    onChange={(event) =>
+                      updateNewCustomer("score", event.target.value)
+                    }
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={inputStyle}
+                  />
+                </FormField>
               </FormSection>
+              <FormSection
+  icon={<CreditCard size={15} />}
+  title="שכר טרחה ותשלום"
+>
+  <FormField label="שכר טרחה">
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={newCustomer.feeAmount}
+      onChange={(event) =>
+        updateNewCustomer("feeAmount", event.target.value)
+      }
+      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+      style={inputStyle}
+    />
+  </FormField>
 
+  <FormField label="אמצעי תשלום">
+    <select
+      value={newCustomer.paymentMethod}
+      onChange={(event) =>
+        updateNewCustomer("paymentMethod", event.target.value)
+      }
+      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+      style={{ ...inputStyle, background: "#FFFFFF" }}
+    >
+      <option value="">בחר אמצעי תשלום</option>
+      <option value="bank_transfer">העברה בנקאית</option>
+      <option value="direct_debit">הוראת קבע</option>
+      <option value="credit_card">כרטיס אשראי</option>
+      <option value="cash">מזומן</option>
+      <option value="check">צ׳ק</option>
+    </select>
+  </FormField>
+
+  <FormField label="תדירות תשלום">
+    <select
+      value={newCustomer.paymentFrequency}
+      onChange={(event) =>
+        updateNewCustomer("paymentFrequency", event.target.value)
+      }
+      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+      style={{ ...inputStyle, background: "#FFFFFF" }}
+    >
+      <option value="">בחר תדירות</option>
+      <option value="monthly">חודשי</option>
+      <option value="bimonthly">דו־חודשי</option>
+      <option value="quarterly">רבעוני</option>
+      <option value="annual">שנתי</option>
+      <option value="one_time">חד־פעמי</option>
+    </select>
+  </FormField>
+</FormSection>
+              <FormSection
+                icon={<ClipboardList size={15} />}
+                title="מאפייני לקוח"
+              >
+                <CheckboxField
+                  label="מלאי"
+                  checked={newCustomer.hasInventory}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasInventory", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="מפורט"
+                  checked={newCustomer.isDetailed}
+                  onChange={(checked) =>
+                    updateNewCustomer("isDetailed", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="ביקורת"
+                  checked={newCustomer.hasAudit}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasAudit", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="סולר"
+                  checked={newCustomer.hasFuel}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasFuel", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="856"
+                  checked={newCustomer.has856}
+                  onChange={(checked) =>
+                    updateNewCustomer("has856", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="הצהרת הון"
+                  checked={newCustomer.hasCapitalDeclaration}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasCapitalDeclaration", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="פנסיה ד.א"
+                  checked={newCustomer.hasPension}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasPension", checked)
+                  }
+                />
+
+                <CheckboxField
+                  label="בנפיט"
+                  checked={newCustomer.hasBenefit}
+                  onChange={(checked) =>
+                    updateNewCustomer("hasBenefit", checked)
+                  }
+                />
+              </FormSection>
               <FormSection icon={<StickyNote size={15} />} title="הערות">
                 <div className="md:col-span-2 lg:col-span-3">
                   <textarea
@@ -1169,5 +1459,41 @@ function FormField({ label, children }: FormFieldProps) {
 
       {children}
     </div>
+  );
+}
+type CheckboxFieldProps = {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+};
+
+function CheckboxField({
+  label,
+  checked,
+  onChange,
+}: CheckboxFieldProps) {
+
+  return (
+    <label
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3"
+      style={{
+        border: `1px solid ${BORDER}`,
+        background: checked ? INDIGO_SOFT : "#FFFFFF",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        style={{ accentColor: INDIGO }}
+      />
+
+      <span
+        className="text-sm font-medium"
+        style={{ color: checked ? INDIGO : SLATE }}
+      >
+        {label}
+      </span>
+    </label>
   );
 }

@@ -37,6 +37,8 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const organizationId = profile.organization_id;
+
   // 3. פרטי המשרד
   const { data: organization, error: organizationError } = await supabase
     .from("organizations")
@@ -49,7 +51,7 @@ export default async function DashboardPage() {
       tax_id,
       logo_url
     `)
-    .eq("id", profile.organization_id)
+    .eq("id", organizationId)
     .maybeSingle();
 
   if (organizationError) {
@@ -72,8 +74,10 @@ export default async function DashboardPage() {
       status,
       updated_at
     `)
-    .eq("organization_id", profile.organization_id)
-    .order("updated_at", { ascending: false })
+    .eq("organization_id", organizationId)
+    .order("updated_at", {
+      ascending: false,
+    })
     .limit(4);
 
   if (clientsError) {
@@ -87,19 +91,49 @@ export default async function DashboardPage() {
       count: "exact",
       head: true,
     })
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", organizationId)
     .ilike("status", "active");
 
   if (countError) {
     console.error("CLIENT COUNT ERROR:", countError);
   }
 
+  // 6. טעינת המשימות של המשרד
+  const { data: tasksData, error: tasksError } = await supabase
+    .from("tasks")
+    .select(`
+      id,
+      title,
+      status,
+      priority,
+      due_date,
+      created_at
+    `)
+    .eq("organization_id", organizationId)
+    .order("created_at", {
+      ascending: false,
+    });
+
+  if (tasksError) {
+    console.error("TASKS ERROR:", tasksError);
+  }
+
+  // התאמת המשימות למבנה של DashboardClient
+  const initialTasks = (tasksData || []).map((task) => ({
+    id: task.id,
+    label: task.title,
+    done: task.status === "done",
+  }));
+
   return (
     <DashboardClient
+      userId={user.id}
+      organizationId={organizationId}
       userName={profile.full_name || user.email || "משתמש"}
       userRole={profile.role || "EMPLOYEE"}
       activeClientsCount={activeClientsCount || 0}
       recentClients={recentClients || []}
+      initialTasks={initialTasks}
       organization={{
         name: organization.name || "המשרד שלי",
         email: organization.email,

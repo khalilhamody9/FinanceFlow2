@@ -2,14 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { DashboardShell } from "../components/dashboard-shell";
 import {
   BarChart3,
-  ClipboardList,
-  PackageOpen,
-  Boxes,
-  CreditCard,
-  ChevronLeft,
   Users,
   FileText,
   ArrowUpRight,
@@ -18,7 +14,21 @@ import {
   CheckCircle2,
   Circle,
   X,
+  Loader2,
+  TrendingUp,
+  ChevronLeft,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 
 type RecentClient = {
   id: string;
@@ -35,11 +45,27 @@ type Task = {
   done: boolean;
 };
 
+// נתוני התרשימים - יש לחבר בהמשך למקור נתונים אמיתי (טבלת לקוחות / תשלומים לפי חודש)
+type MonthlyClientsPoint = {
+  month: string;
+  clients: number;
+};
+
+type MonthlyFeesPoint = {
+  month: string;
+  fees: number;
+};
+
 type DashboardClientProps = {
+  userId: string;
+  organizationId: string;
   userName: string;
   userRole: string;
   activeClientsCount: number;
   recentClients: RecentClient[];
+  initialTasks: Task[];
+  monthlyClients?: MonthlyClientsPoint[];
+  monthlyFees?: MonthlyFeesPoint[];
 
   organization: {
     name: string;
@@ -55,93 +81,163 @@ const INK = "#1B1E2E";
 const SLATE = "#6B7280";
 const MUTE = "#9CA1B0";
 const INDIGO = "#5B4FE8";
+const TEAL = "#17A398";
 const BORDER = "#ECEDF5";
 
-const ACTION_CARDS = [
-  {
-    title: "דוחות",
-    href: "/reports",
-    desc: "מעקב דוחות, הזמנות, ייצוא ועוד",
-    stat: "מעבר לדוחות",
-    icon: ClipboardList,
-    gradient: "linear-gradient(135deg, #4C46D6, #7A72F0)",
-  },
-  {
-    title: "דיווח שנתי",
-    href: "/reports/yearly",
-    desc: "הגשת דוחות, הצהרות הון, עדכונים ועוד",
-    stat: "מעבר לדיווח שנתי",
-    icon: PackageOpen,
-    gradient: "linear-gradient(135deg, #0E8C82, #4FCFC0)",
-  },
-  {
-    title: "דיווח שוטף",
-    href: "/reports/monthly",
-    desc: "מעקב לקוחות, עדכונים, דיווחים ועוד",
-    stat: "מעבר לדיווח שוטף",
-    icon: Boxes,
-    gradient: "linear-gradient(135deg, #2454C7, #4C82EE)",
-  },
-  {
-    title: "תשלומים",
-    href: "/payments",
-    desc: "מעקב תשלומים, יצירת תשלום, צ׳קים ועוד",
-    stat: "מעבר לתשלומים",
-    icon: CreditCard,
-    gradient: "linear-gradient(135deg, #16244D, #2F4F9E)",
-  },
+// נתוני ברירת מחדל להדגמה - להחליף בנתונים אמיתיים כשיהיה מקור נתונים
+const DEFAULT_MONTHLY_CLIENTS: MonthlyClientsPoint[] = [
+  { month: "פבר׳", clients: 18 },
+  { month: "מרץ", clients: 22 },
+  { month: "אפר׳", clients: 27 },
+  { month: "מאי", clients: 31 },
+  { month: "יוני", clients: 36 },
+  { month: "יולי", clients: 42 },
+];
+
+const DEFAULT_MONTHLY_FEES: MonthlyFeesPoint[] = [
+  { month: "פבר׳", fees: 14200 },
+  { month: "מרץ", fees: 16800 },
+  { month: "אפר׳", fees: 15600 },
+  { month: "מאי", fees: 19300 },
+  { month: "יוני", fees: 21100 },
+  { month: "יולי", fees: 24500 },
 ];
 
 export default function DashboardClient({
+  userId,
+  organizationId,
   userName,
   userRole,
   organization,
   recentClients,
   activeClientsCount,
+  initialTasks,
+  monthlyClients = DEFAULT_MONTHLY_CLIENTS,
+  monthlyFees = DEFAULT_MONTHLY_FEES,
 }: DashboardClientProps) {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const supabase = createClient();
+
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [newTask, setNewTask] = useState("");
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskError, setTaskError] = useState("");
 
-  function addTask(event: FormEvent<HTMLFormElement>) {
+  async function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const cleanTask = newTask.trim();
 
-    if (!cleanTask) {
+    if (!cleanTask || isAddingTask) {
       return;
     }
 
-    setTasks((currentTasks) => [
-      {
-        id: crypto.randomUUID(),
-        label: cleanTask,
-        done: false,
-      },
-      ...currentTasks,
-    ]);
+    setIsAddingTask(true);
+    setTaskError("");
 
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        organization_id: organizationId,
+        assigned_to: userId,
+        title: cleanTask,
+        status: "open",
+        priority: "medium",
+      })
+      .select(`
+        id,
+        title,
+        status
+      `)
+      .single();
+
+    if (error) {
+      console.error("ADD TASK ERROR:", error);
+      setTaskError(`לא ניתן היה לשמור את המשימה: ${error.message}`);
+      setIsAddingTask(false);
+      return;
+    }
+
+    const createdTask: Task = {
+      id: data.id,
+      label: data.title,
+      done: data.status === "done",
+    };
+
+    setTasks((currentTasks) => [createdTask, ...currentTasks]);
     setNewTask("");
     setShowTaskForm(false);
+    setIsAddingTask(false);
   }
 
-  function toggleTask(taskId: string) {
+  async function toggleTask(task: Task) {
+    if (activeTaskId) {
+      return;
+    }
+
+    setActiveTaskId(task.id);
+    setTaskError("");
+
+    const nextDoneValue = !task.done;
+    const nextStatus = nextDoneValue ? "done" : "open";
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", task.id)
+      .eq("organization_id", organizationId);
+
+    if (error) {
+      console.error("UPDATE TASK ERROR:", error);
+      setTaskError(`לא ניתן היה לעדכן את המשימה: ${error.message}`);
+      setActiveTaskId(null);
+      return;
+    }
+
     setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId
+      currentTasks.map((currentTask) =>
+        currentTask.id === task.id
           ? {
-              ...task,
-              done: !task.done,
+              ...currentTask,
+              done: nextDoneValue,
             }
-          : task,
+          : currentTask,
       ),
     );
+
+    setActiveTaskId(null);
   }
 
-  function removeTask(taskId: string) {
+  async function removeTask(taskId: string) {
+    if (activeTaskId) {
+      return;
+    }
+
+    setActiveTaskId(taskId);
+    setTaskError("");
+
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", taskId)
+      .eq("organization_id", organizationId);
+
+    if (error) {
+      console.error("DELETE TASK ERROR:", error);
+      setTaskError(`לא ניתן היה למחוק את המשימה: ${error.message}`);
+      setActiveTaskId(null);
+      return;
+    }
+
     setTasks((currentTasks) =>
       currentTasks.filter((task) => task.id !== taskId),
     );
+
+    setActiveTaskId(null);
   }
 
   function isClientActive(status: string | null) {
@@ -183,6 +279,24 @@ export default function DashboardClient({
     },
   ];
 
+  const clientsGrowthPercent =
+    monthlyClients.length > 1 && monthlyClients[0].clients > 0
+      ? Math.round(
+          ((monthlyClients[monthlyClients.length - 1].clients -
+            monthlyClients[0].clients) /
+            monthlyClients[0].clients) *
+            100,
+        )
+      : 0;
+
+  const latestFees = monthlyFees[monthlyFees.length - 1]?.fees ?? 0;
+  const previousFees =
+    monthlyFees[monthlyFees.length - 2]?.fees ?? latestFees;
+  const feesGrowthPercent =
+    previousFees > 0
+      ? Math.round(((latestFees - previousFees) / previousFees) * 100)
+      : 0;
+
   return (
     <DashboardShell userName={userName}>
       <main className="mx-auto max-w-[1440px] px-8 py-9">
@@ -214,7 +328,10 @@ export default function DashboardClient({
 
           <button
             type="button"
-            onClick={() => setShowTaskForm(true)}
+            onClick={() => {
+              setTaskError("");
+              setShowTaskForm(true);
+            }}
             className="dash-focusable px-5 py-3 text-sm font-semibold text-white"
             style={{
               background: INDIGO,
@@ -240,9 +357,10 @@ export default function DashboardClient({
               autoFocus
               type="text"
               value={newTask}
+              disabled={isAddingTask}
               onChange={(event) => setNewTask(event.target.value)}
               placeholder="כתוב את המשימה החדשה..."
-              className="min-w-[250px] flex-1 rounded-xl px-4 py-3 text-sm outline-none"
+              className="min-w-[250px] flex-1 rounded-xl px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 border: `1px solid ${BORDER}`,
                 color: INK,
@@ -251,19 +369,26 @@ export default function DashboardClient({
 
             <button
               type="submit"
-              className="rounded-xl px-5 py-3 text-sm font-semibold text-white"
+              disabled={isAddingTask || !newTask.trim()}
+              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               style={{ background: INDIGO }}
             >
-              הוספה
+              {isAddingTask && (
+                <Loader2 size={16} className="animate-spin" />
+              )}
+
+              {isAddingTask ? "שומר..." : "הוספה"}
             </button>
 
             <button
               type="button"
+              disabled={isAddingTask}
               onClick={() => {
                 setShowTaskForm(false);
                 setNewTask("");
+                setTaskError("");
               }}
-              className="rounded-xl px-5 py-3 text-sm font-semibold"
+              className="rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 color: SLATE,
                 border: `1px solid ${BORDER}`,
@@ -272,6 +397,19 @@ export default function DashboardClient({
               ביטול
             </button>
           </form>
+        )}
+
+        {taskError && (
+          <div
+            className="mb-8 rounded-xl px-4 py-3 text-sm"
+            style={{
+              background: "#FEF2F2",
+              border: "1px solid #FECACA",
+              color: "#B91C1C",
+            }}
+          >
+            {taskError}
+          </div>
         )}
 
         {/* פרטי משרד */}
@@ -286,6 +424,7 @@ export default function DashboardClient({
             <p className="text-xs" style={{ color: MUTE }}>
               שם המשרד
             </p>
+
             <p className="mt-1 text-sm font-semibold" style={{ color: INK }}>
               {organization.name}
             </p>
@@ -295,6 +434,7 @@ export default function DashboardClient({
             <p className="text-xs" style={{ color: MUTE }}>
               אימייל המשרד
             </p>
+
             <p className="mt-1 text-sm font-semibold" style={{ color: INK }}>
               {organization.email || "לא הוגדר"}
             </p>
@@ -304,6 +444,7 @@ export default function DashboardClient({
             <p className="text-xs" style={{ color: MUTE }}>
               טלפון
             </p>
+
             <p className="mt-1 text-sm font-semibold" style={{ color: INK }}>
               {organization.phone || "לא הוגדר"}
             </p>
@@ -313,6 +454,7 @@ export default function DashboardClient({
             <p className="text-xs" style={{ color: MUTE }}>
               כתובת
             </p>
+
             <p className="mt-1 text-sm font-semibold" style={{ color: INK }}>
               {organization.address || "לא הוגדרה"}
             </p>
@@ -371,63 +513,167 @@ export default function DashboardClient({
           ))}
         </div>
 
-        {/* כרטיסי פעולה */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {ACTION_CARDS.map(
-            ({ title, href, desc, stat, icon: Icon, gradient }) => (
-              <Link
-                key={title}
-                href={href}
-                className="dash-card dash-focusable block overflow-hidden bg-white"
+        {/* תרשימים - עליית מספר הלקוחות ושכר טרחה */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* עליית מספר הלקוחות */}
+          <div
+            className="bg-white p-6"
+            style={{
+              borderRadius: "18px",
+              border: `1px solid ${BORDER}`,
+            }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold" style={{ color: INK }}>
+                  עליית מספר הלקוחות
+                </h3>
+
+                <p className="mt-1 text-xs" style={{ color: SLATE }}>
+                  מספר לקוחות לפי חודש
+                </p>
+              </div>
+
+              <div
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold"
                 style={{
-                  borderRadius: "18px",
-                  border: `1px solid ${BORDER}`,
+                  borderRadius: "999px",
+                  background: "#E6F4EA",
+                  color: "#1E7B3B",
                 }}
               >
-                <div
-                  className="relative flex h-36 items-center justify-center"
-                  style={{ background: gradient }}
-                >
-                  <div
-                    className="flex h-16 w-16 items-center justify-center rounded-full"
-                    style={{
-                      background: "rgba(255,255,255,0.16)",
-                      border: "1px solid rgba(255,255,255,0.3)",
+                <TrendingUp size={13} />
+                {clientsGrowthPercent >= 0 ? "+" : ""}
+                {clientsGrowthPercent}%
+              </div>
+            </div>
+
+            <div style={{ width: "100%", height: 220 }}>
+              <ResponsiveContainer>
+                <LineChart data={monthlyClients}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={BORDER}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 12, fill: MUTE }}
+                    axisLine={{ stroke: BORDER }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: MUTE }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={30}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: `1px solid ${BORDER}`,
+                      fontSize: "12px",
                     }}
-                  >
-                    <Icon size={26} color="#FFFFFF" strokeWidth={1.6} />
-                  </div>
+formatter={(value) => [
+  value == null ? "0" : String(value),
+  "לקוחות",
+]}                  />
+                  <Line
+                    type="monotone"
+                    dataKey="clients"
+                    stroke={INDIGO}
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: INDIGO }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-                  <span
-                    className="absolute bottom-3 right-3 px-2.5 py-1 text-[11px] font-medium text-white"
-                    style={{
-                      background: "rgba(0,0,0,0.18)",
-                      borderRadius: "999px",
+          {/* שכר טרחה */}
+          <div
+            className="bg-white p-6"
+            style={{
+              borderRadius: "18px",
+              border: `1px solid ${BORDER}`,
+            }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold" style={{ color: INK }}>
+                  שכר טרחה
+                </h3>
+
+                <p className="mt-1 text-xs" style={{ color: SLATE }}>
+                  הכנסה משכר טרחה לפי חודש
+                </p>
+              </div>
+
+              <div
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  borderRadius: "999px",
+                  background: feesGrowthPercent >= 0 ? "#E6F4EA" : "#FEF3E2",
+                  color: feesGrowthPercent >= 0 ? "#1E7B3B" : "#B8720B",
+                }}
+              >
+                {feesGrowthPercent >= 0 ? (
+                  <ArrowUpRight size={13} />
+                ) : (
+                  <ArrowDownRight size={13} />
+                )}
+                {feesGrowthPercent >= 0 ? "+" : ""}
+                {feesGrowthPercent}%
+              </div>
+            </div>
+
+            <div style={{ width: "100%", height: 220 }}>
+              <ResponsiveContainer>
+                <BarChart data={monthlyFees}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={BORDER}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 12, fill: MUTE }}
+                    axisLine={{ stroke: BORDER }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: MUTE }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={45}
+                    tickFormatter={(value: number) =>
+                      `₪${Math.round(value / 1000)}K`
+                    }
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: `1px solid ${BORDER}`,
+                      fontSize: "12px",
                     }}
-                  >
-                    {stat}
-                  </span>
-                </div>
+formatter={(value) => {
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : Number(value ?? 0);
 
-                <div className="p-5">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-bold" style={{ color: INK }}>
-                      {title}
-                    </h3>
-
-                    <ChevronLeft size={15} style={{ color: MUTE }} />
-                  </div>
-
-                  <p
-                    className="mt-1.5 text-sm leading-6"
-                    style={{ color: SLATE }}
-                  >
-                    {desc}
-                  </p>
-                </div>
-              </Link>
-            ),
-          )}
+  return [
+    `₪${numericValue.toLocaleString("he-IL")}`,
+    "שכר טרחה",
+  ];
+}}
+                  />
+                  <Bar dataKey="fees" fill={TEAL} radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* לקוחות ומשימות */}
@@ -548,49 +794,61 @@ export default function DashboardClient({
                   עדיין אין משימות.
                 </div>
               ) : (
-                tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="dash-task flex items-center gap-2 rounded-xl px-3 py-2"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleTask(task.id)}
-                      className="dash-focusable flex flex-1 items-center gap-3 rounded-xl py-1 text-right"
-                    >
-                      {task.done ? (
-                        <CheckCircle2
-                          size={18}
-                          style={{ color: INDIGO }}
-                        />
-                      ) : (
-                        <Circle size={18} style={{ color: MUTE }} />
-                      )}
+                tasks.map((task) => {
+                  const isLoading = activeTaskId === task.id;
 
-                      <span
-                        className="text-sm"
-                        style={{
-                          color: task.done ? MUTE : INK,
-                          textDecoration: task.done
-                            ? "line-through"
-                            : "none",
-                        }}
+                  return (
+                    <div
+                      key={task.id}
+                      className="dash-task flex items-center gap-2 rounded-xl px-3 py-2"
+                    >
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => toggleTask(task)}
+                        className="dash-focusable flex flex-1 items-center gap-3 rounded-xl py-1 text-right disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {task.label}
-                      </span>
-                    </button>
+                        {isLoading ? (
+                          <Loader2
+                            size={18}
+                            className="animate-spin"
+                            style={{ color: INDIGO }}
+                          />
+                        ) : task.done ? (
+                          <CheckCircle2
+                            size={18}
+                            style={{ color: INDIGO }}
+                          />
+                        ) : (
+                          <Circle size={18} style={{ color: MUTE }} />
+                        )}
 
-                    <button
-                      type="button"
-                      onClick={() => removeTask(task.id)}
-                      className="dash-focusable flex h-8 w-8 items-center justify-center rounded-full"
-                      style={{ color: MUTE }}
-                      aria-label="מחיקת משימה"
-                    >
-                      <X size={15} />
-                    </button>
-                  </div>
-                ))
+                        <span
+                          className="text-sm"
+                          style={{
+                            color: task.done ? MUTE : INK,
+                            textDecoration: task.done
+                              ? "line-through"
+                              : "none",
+                          }}
+                        >
+                          {task.label}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => removeTask(task.id)}
+                        className="dash-focusable flex h-8 w-8 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-60"
+                        style={{ color: MUTE }}
+                        aria-label="מחיקת משימה"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

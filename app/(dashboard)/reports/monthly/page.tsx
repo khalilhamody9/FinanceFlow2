@@ -1,14 +1,44 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "../../components/dashboard-shell";
+import MonthlyReportClient from "./monthly-report-client";
 
-export default function MonthlyReportPage() {
+export default async function MonthlyReportPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, is_active, organization_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile?.is_active || !profile.organization_id) redirect("/login");
+
+  const { data: clients, error } = await supabase
+    .from("clients")
+    .select(`
+      id, first_name, last_name, business_name, business_number, phone,
+      vat_file, income_tax_file, deductions_file, vat_report_type,
+      status, has_fuel, has_inventory, is_detailed, notes
+    `)
+    .eq("organization_id", profile.organization_id)
+    .order("business_name", { ascending: true });
+
+  if (error) console.error("MONTHLY REPORT CLIENTS ERROR:", error);
+
+  const { data: reports, error: reportsError } = await supabase
+    .from("monthly_reports")
+    .select("client_id, reporting_year, reporting_month, vat_status, income_tax_status, national_insurance_status, income_tax_deductions_status, national_insurance_deductions_status, fuel_refund_status, overall_status, assigned_to, notes")
+    .eq("organization_id", profile.organization_id);
+
+  if (reportsError) console.error("MONTHLY REPORTS ERROR:", reportsError);
+
   return (
-    <DashboardShell>
-      <main className="mx-auto max-w-[1440px] px-8 py-8">
-        <div className="rounded-[18px] border border-[#E7E8F0] bg-white p-8">
-          <h1 className="text-2xl font-bold text-[#1B1E2E]">דיווח שוטף</h1>
-          <p className="mt-3 text-sm text-[#6B7280]">עמוד הדיווח השוטף מוכן להמשך עבודה עם סיכומי חודש ונתונים שוטפים.</p>
-        </div>
-      </main>
+    <DashboardShell userName={profile.full_name || user.email || "משתמש"}>
+      <MonthlyReportClient initialClients={clients ?? []} initialReports={reports ?? []} organizationId={profile.organization_id} />
     </DashboardShell>
   );
 }
