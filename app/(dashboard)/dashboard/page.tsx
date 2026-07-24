@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardClient from "./dashboard-client";
 
+function cleanDisplayName(value: unknown, fallback: string) {
+  if (typeof value !== "string") return fallback;
+  const name = value.trim();
+  if (!name || ["undefined", "null", "לא מוגדר"].includes(name.toLowerCase())) return fallback;
+  return name;
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
@@ -38,6 +45,7 @@ export default async function DashboardPage() {
   }
 
   const organizationId = profile.organization_id;
+  const currentUserName = cleanDisplayName(profile.full_name, user.email || "משתמש");
 
   // 3. פרטי המשרד
   const { data: organization, error: organizationError } = await supabase
@@ -98,8 +106,29 @@ export default async function DashboardPage() {
     console.error("CLIENT COUNT ERROR:", countError);
   }
 
+  const isManager = ["ADMIN", "MANAGER"].includes((profile.role || "").toUpperCase());
+  const employeeRpcResult = isManager
+    ? await supabase.rpc("get_organization_employees")
+    : { data: null, error: null };
+
+  const employeeFallbackResult = !isManager || employeeRpcResult.error
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("full_name", { ascending: true })
+    : { data: null, error: null };
+
+  const employeesData = employeeRpcResult.data || employeeFallbackResult.data || [];
+  const employeesError = employeeRpcResult.error && employeeFallbackResult.error
+    ? employeeFallbackResult.error
+    : null;
+
+  if (employeesError) console.error("EMPLOYEES ERROR:", employeesError);
+
   // 6. טעינת המשימות של המשרד
-  const { data: tasksData, error: tasksError } = await supabase
+  let tasksQuery = supabase
     .from("tasks")
     .select(`
       id,
@@ -107,12 +136,19 @@ export default async function DashboardPage() {
       status,
       priority,
       due_date,
+      assigned_to,
+      created_by,
+      assignee:profiles!tasks_assigned_to_fkey(full_name),
+      creator:profiles!tasks_created_by_fkey(full_name),
       created_at
     `)
     .eq("organization_id", organizationId)
     .order("created_at", {
       ascending: false,
     });
+
+  if (!isManager) tasksQuery = tasksQuery.eq("assigned_to", user.id);
+  const { data: tasksData, error: tasksError } = await tasksQuery;
 
   if (tasksError) {
     console.error("TASKS ERROR:", tasksError);
@@ -123,17 +159,42 @@ export default async function DashboardPage() {
     id: task.id,
     label: task.title,
     done: task.status === "done",
+    dueDate: task.due_date,
+    assignedTo: task.assigned_to,
+    assignedName: task.assignee?.[0]?.full_name || "עובד",
+    creatorName: cleanDisplayName(
+      task.creator?.[0]?.full_name,
+      task.created_by === user.id ? currentUserName : "מנהל המשרד",
+    ),
   }));
+
+  const visibleTaskIds = (tasksData || []).map((task) => task.id);
+  let historyQuery = supabase
+    .from("task_history")
+    .select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (!isManager && visibleTaskIds.length > 0) historyQuery = historyQuery.in("task_id", visibleTaskIds);
+  const historyResult = !isManager && visibleTaskIds.length === 0
+    ? { data: [], error: null }
+    : await historyQuery;
+  const taskHistoryData = historyResult.data || [];
+  const taskHistoryError = historyResult.error;
+
+  if (taskHistoryError) console.error("TASK HISTORY ERROR:", taskHistoryError);
 
   return (
     <DashboardClient
       userId={user.id}
       organizationId={organizationId}
-      userName={profile.full_name || user.email || "משתמש"}
+      userName={currentUserName}
       userRole={profile.role || "EMPLOYEE"}
       activeClientsCount={activeClientsCount || 0}
       recentClients={recentClients || []}
       initialTasks={initialTasks}
+      initialTaskHistory={taskHistoryData || []}
+      employees={employeesData || []}
       organization={{
         name: organization.name || "המשרד שלי",
         email: organization.email,

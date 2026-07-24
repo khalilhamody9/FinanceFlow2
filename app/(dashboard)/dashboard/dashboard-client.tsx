@@ -12,6 +12,8 @@ import {
   ArrowDownRight,
   Wallet,
   CheckCircle2,
+  BellRing,
+  History,
   Circle,
   X,
   Loader2,
@@ -43,7 +45,15 @@ type Task = {
   id: string;
   label: string;
   done: boolean;
+  dueDate: string | null;
+  assignedTo: string | null;
+  assignedName: string;
+  creatorName: string;
 };
+
+type Employee = { id: string; full_name: string | null; role: string | null };
+
+type TaskHistory = { id: string; task_id: string | null; task_title: string; action: string; details: string | null; created_at: string; profiles: { full_name: string | null } | { full_name: string | null }[] | null };
 
 // נתוני התרשימים - יש לחבר בהמשך למקור נתונים אמיתי (טבלת לקוחות / תשלומים לפי חודש)
 type MonthlyClientsPoint = {
@@ -64,6 +74,8 @@ type DashboardClientProps = {
   activeClientsCount: number;
   recentClients: RecentClient[];
   initialTasks: Task[];
+  initialTaskHistory: TaskHistory[];
+  employees: Employee[];
   monthlyClients?: MonthlyClientsPoint[];
   monthlyFees?: MonthlyFeesPoint[];
 
@@ -77,12 +89,17 @@ type DashboardClientProps = {
   };
 };
 
-const INK = "#1B1E2E";
-const SLATE = "#6B7280";
-const MUTE = "#9CA1B0";
-const INDIGO = "#5B4FE8";
-const TEAL = "#17A398";
-const BORDER = "#ECEDF5";
+const INK = "#0B2348";
+const SLATE = "#65738B";
+const MUTE = "#94A0B3";
+const INDIGO = "#C99B2D";
+const TEAL = "#1F7893";
+const BORDER = "#E8EDF5";
+
+function safeName(value: string | null | undefined, fallback: string) {
+  const name = value?.trim();
+  return name && !["undefined", "null"].includes(name.toLowerCase()) ? name : fallback;
+}
 
 // נתוני ברירת מחדל להדגמה - להחליף בנתונים אמיתיים כשיהיה מקור נתונים
 const DEFAULT_MONTHLY_CLIENTS: MonthlyClientsPoint[] = [
@@ -112,6 +129,8 @@ export default function DashboardClient({
   recentClients,
   activeClientsCount,
   initialTasks,
+  initialTaskHistory,
+  employees,
   monthlyClients = DEFAULT_MONTHLY_CLIENTS,
   monthlyFees = DEFAULT_MONTHLY_FEES,
 }: DashboardClientProps) {
@@ -120,9 +139,14 @@ export default function DashboardClient({
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [newTask, setNewTask] = useState("");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskAssignee, setNewTaskAssignee] = useState(userId);
+  const [taskHistory, setTaskHistory] = useState<TaskHistory[]>(initialTaskHistory);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [taskError, setTaskError] = useState("");
+  const isManager = ["ADMIN", "MANAGER"].includes(userRole.toUpperCase());
 
   async function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,15 +164,19 @@ export default function DashboardClient({
       .from("tasks")
       .insert({
         organization_id: organizationId,
-        assigned_to: userId,
+        assigned_to: isManager ? newTaskAssignee : userId,
+        created_by: userId,
         title: cleanTask,
         status: "open",
         priority: "medium",
+        due_date: newTaskDueDate || null,
       })
       .select(`
         id,
         title,
         status
+        ,due_date,
+        assigned_to
       `)
       .single();
 
@@ -163,10 +191,20 @@ export default function DashboardClient({
       id: data.id,
       label: data.title,
       done: data.status === "done",
+      dueDate: data.due_date,
+      assignedTo: data.assigned_to,
+      assignedName: safeName(employees.find((employee) => employee.id === data.assigned_to)?.full_name, "עובד"),
+      creatorName: safeName(userName, "מנהל המשרד"),
     };
+
+    const assigneeName = safeName(employees.find((employee) => employee.id === data.assigned_to)?.full_name, "עובד");
+    const historyDetails = [`הוקצתה ל: ${assigneeName}`, newTaskDueDate ? `תאריך יעד: ${newTaskDueDate}` : null].filter(Boolean).join(" · ");
+    const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: data.id, task_title: cleanTask, action: "created", details: historyDetails, performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
+    if (historyEntry) setTaskHistory((current) => [historyEntry, ...current]);
 
     setTasks((currentTasks) => [createdTask, ...currentTasks]);
     setNewTask("");
+    setNewTaskDueDate("");
     setShowTaskForm(false);
     setIsAddingTask(false);
   }
@@ -209,6 +247,10 @@ export default function DashboardClient({
       ),
     );
 
+    const action = nextDoneValue ? "completed" : "reopened";
+    const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: task.id, task_title: task.label, action, performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
+    if (historyEntry) setTaskHistory((current) => [historyEntry, ...current]);
+
     setActiveTaskId(null);
   }
 
@@ -219,6 +261,12 @@ export default function DashboardClient({
 
     setActiveTaskId(taskId);
     setTaskError("");
+
+    const task = tasks.find((item) => item.id === taskId);
+    if (task) {
+      const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: task.id, task_title: task.label, action: "deleted", performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
+      if (historyEntry) setTaskHistory((current) => [{ ...historyEntry, task_id: null }, ...current]);
+    }
 
     const { error } = await supabase
       .from("tasks")
@@ -339,7 +387,7 @@ export default function DashboardClient({
               boxShadow: "0 10px 24px -10px rgba(91,79,232,0.55)",
             }}
           >
-            + משימה חדשה
+            {isManager ? "+ משימה חדשה לעובד" : "+ משימה חדשה לעצמי"}
           </button>
         </div>
 
@@ -367,6 +415,20 @@ export default function DashboardClient({
               }}
             />
 
+            <label className="flex min-w-[210px] items-center gap-2 rounded-xl px-3 py-2" style={{ border: `1px solid ${BORDER}`, color: SLATE }}>
+              <BellRing size={16} />
+              <span className="sr-only">תאריך תזכורת</span>
+              <input type="date" value={newTaskDueDate} disabled={isAddingTask} onChange={(event) => setNewTaskDueDate(event.target.value)} className="w-full bg-transparent text-sm outline-none" aria-label="תאריך תזכורת" />
+            </label>
+
+            {isManager && <label className="flex min-w-[220px] items-center gap-2 rounded-xl px-3 py-2" style={{ border: `1px solid ${BORDER}`, color: SLATE }}>
+              <Users size={16} />
+              <span className="sr-only">הקצאה לעובד</span>
+              <select value={newTaskAssignee} disabled={isAddingTask} onChange={(event) => setNewTaskAssignee(event.target.value)} className="w-full bg-transparent text-sm outline-none" aria-label="הקצאה לעובד" required>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || "עובד ללא שם"}{employee.id === userId ? " (אני)" : ""}</option>)}
+              </select>
+            </label>}
+
             <button
               type="submit"
               disabled={isAddingTask || !newTask.trim()}
@@ -386,6 +448,7 @@ export default function DashboardClient({
               onClick={() => {
                 setShowTaskForm(false);
                 setNewTask("");
+                setNewTaskDueDate("");
                 setTaskError("");
               }}
               className="rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
@@ -774,9 +837,7 @@ formatter={(value) => {
                 משימות קרובות
               </h2>
 
-              <span className="text-xs font-medium" style={{ color: MUTE }}>
-                {tasks.filter((task) => !task.done).length} פתוחות
-              </span>
+              <button type="button" onClick={() => setShowTaskHistory((value) => !value)} className="dash-focusable flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium" style={{ color: INDIGO, background: "#EFEEFF" }}><History size={13} />{showTaskHistory ? "משימות" : "היסטוריה"}</button>
             </div>
 
             <div
@@ -786,7 +847,13 @@ formatter={(value) => {
                 border: `1px solid ${BORDER}`,
               }}
             >
-              {tasks.length === 0 ? (
+              {showTaskHistory ? (
+                taskHistory.length === 0 ? <div className="px-4 py-10 text-center text-sm" style={{ color: MUTE }}>עדיין אין היסטוריית משימות.</div> : taskHistory.slice(0, 12).map((entry) => {
+                  const actionLabels: Record<string, string> = { created: "נוצרה", completed: "הושלמה", reopened: "נפתחה מחדש", updated: "עודכנה", deleted: "נמחקה" };
+                  const profile = Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles;
+                  return <div key={entry.id} className="border-b px-3 py-3 last:border-0" style={{ borderColor: BORDER }}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium" style={{ color: INK }}>{entry.task_title}</p><p className="mt-1 text-xs" style={{ color: SLATE }}>{actionLabels[entry.action] || entry.action}{profile?.full_name ? ` · ${profile.full_name}` : ""}</p></div><time className="shrink-0 text-[10px]" style={{ color: MUTE }}>{new Intl.DateTimeFormat("he-IL", { dateStyle: "short", timeStyle: "short" }).format(new Date(entry.created_at))}</time></div>{entry.details && <p className="mt-1 text-[11px]" style={{ color: MUTE }}>{entry.details}</p>}</div>;
+                })
+              ) : tasks.length === 0 ? (
                 <div
                   className="px-4 py-10 text-center text-sm"
                   style={{ color: MUTE }}
@@ -796,12 +863,24 @@ formatter={(value) => {
               ) : (
                 tasks.map((task) => {
                   const isLoading = activeTaskId === task.id;
+                  const isOverdue = Boolean(
+                    task.dueDate &&
+                    !task.done &&
+                    task.dueDate < new Date().toISOString().slice(0, 10),
+                  );
 
                   return (
                     <div
                       key={task.id}
-                      className="dash-task flex items-center gap-2 rounded-xl px-3 py-2"
+                      className="dash-task flex items-center gap-2 rounded-xl px-3 py-2 transition-all"
+                      style={isOverdue ? {
+                        color: "#B42335",
+                        background: "linear-gradient(90deg, #FFF1F3, #FFF7F8)",
+                        border: "1px solid #F3AAB5",
+                        boxShadow: "0 0 0 3px rgba(220, 70, 91, .08), 0 6px 16px rgba(180, 35, 53, .08)",
+                      } : { border: "1px solid transparent" }}
                     >
+                      {isOverdue && <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#D92D48] shadow-[0_0_0_4px_rgba(217,45,72,.14)]" aria-label="משימה באיחור" />}
                       <button
                         type="button"
                         disabled={isLoading}
@@ -824,19 +903,21 @@ formatter={(value) => {
                         )}
 
                         <span
-                          className="text-sm"
+                          className="min-w-0 flex-1 text-sm"
                           style={{
-                            color: task.done ? MUTE : INK,
+                            color: task.done ? MUTE : isOverdue ? "#A9283C" : INK,
                             textDecoration: task.done
                               ? "line-through"
                               : "none",
                           }}
                         >
-                          {task.label}
+                          <span className="block truncate">{task.label}</span>
+                          <span className="mt-1 block text-[10px] font-medium" style={{ color: MUTE }}>{isManager ? `עבור: ${safeName(task.assignedName, "עובד")}` : `מאת: ${safeName(task.creatorName, "מנהל המשרד")}`}</span>
+                          {task.dueDate && <span className="mt-1 flex items-center gap-1 text-[10px] font-medium" style={{ color: !task.done && task.dueDate <= new Date().toISOString().slice(0, 10) ? "#C0263D" : MUTE }}><BellRing size={11} className={isOverdue ? "animate-pulse" : ""} />{new Intl.DateTimeFormat("he-IL").format(new Date(`${task.dueDate}T00:00:00`))}{isOverdue ? " · באיחור" : !task.done && task.dueDate === new Date().toISOString().slice(0, 10) ? " · תזכורת להיום" : ""}</span>}
                         </span>
                       </button>
 
-                      <button
+                      {isManager && <button
                         type="button"
                         disabled={isLoading}
                         onClick={() => removeTask(task.id)}
@@ -845,7 +926,7 @@ formatter={(value) => {
                         aria-label="מחיקת משימה"
                       >
                         <X size={15} />
-                      </button>
+                      </button>}
                     </div>
                   );
                 })

@@ -141,12 +141,12 @@ paymentFrequency: "",
   
 };
 
-const INK = "#1B1E2E";
-const SLATE = "#6B7280";
-const MUTE = "#9CA1B0";
-const INDIGO = "#5B4FE8";
-const INDIGO_SOFT = "#EEECFD";
-const BORDER = "#E7E8F0";
+const INK = "#0B2348";
+const SLATE = "#65738B";
+const MUTE = "#94A0B3";
+const INDIGO = "#C99B2D";
+const INDIGO_SOFT = "#FBF6E9";
+const BORDER = "#E8EDF5";
 
 const FILTERS = [
   { label: "סוג עוסק" },

@@ -1,16 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f7fb;
-  --foreground: #20243a;
+  --background: #f6f8fc;
+  --foreground: #0b2348;
   --surface: #ffffff;
-  --surface-soft: #f8f9fd;
-  --border: #e7e9f2;
-  --muted: #7b8198;
-  --primary: #5851e8;
-  --primary-soft: #efeeff;
-  --shadow-sm: 0 2px 10px rgba(39, 45, 78, .05);
-  --shadow-md: 0 14px 38px rgba(39, 45, 78, .08);
+  --surface-soft: #f8faff;
+  --border: #e8edf5;
+  --muted: #738098;
+  --primary: #c99b2d;
+  --primary-soft: #fbf6e9;
+  --navy: #061b3c;
+  --navy-light: #103667;
+  --gold: #c99b2d;
+  --shadow-sm: 0 3px 14px rgba(10, 35, 74, .05);
+  --shadow-md: 0 16px 42px rgba(10, 35, 74, .09);
 }
 
 @theme inline {
@@ -37,8 +40,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-::selection { color: #fff; background: #655dea; }
+::selection { color: #fff; background: var(--gold); }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: #f0f2f8; }
 ::-webkit-scrollbar-thumb { background: #c9cede; border: 2px solid #f0f2f8; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #abb2c8; }
+
+/* Shared visual language for the management area */
+.dash-shell-root main > div,
+.dash-shell-root main > section,
+.dash-shell-root .bg-white {
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-shell-root h1,
+.dash-shell-root h2,
+.dash-shell-root h3 {
+  letter-spacing: -0.025em;
+}
+
+.dash-shell-root input,
+.dash-shell-root select,
+.dash-shell-root textarea {
+  border-color: var(--border);
+}
