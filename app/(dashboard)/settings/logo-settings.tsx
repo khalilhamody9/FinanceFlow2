@@ -47,16 +47,15 @@ export default function LogoSettings({ organizationId, initialLogoUrl }: LogoSet
 
     const { data } = supabase.storage.from("organization-logos").getPublicUrl(path);
     const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
-    const { error: rpcError } = await supabase.rpc("set_organization_logo", {
+    const { error: updateError } = await supabase.rpc("set_organization_logo", {
       p_logo_url: publicUrl,
     });
-    const fallbackResult = rpcError
-      ? await supabase.from("organizations").update({ logo_url: publicUrl }).eq("id", organizationId)
-      : null;
-    const updateError = fallbackResult?.error ?? (rpcError?.code === "PGRST202" ? null : rpcError);
 
     if (updateError) {
-      setMessage(`שמירת הלוגו נכשלה: ${updateError.message}`);
+      const missingFunction = updateError.message.includes("set_organization_logo");
+      setMessage(missingFunction
+        ? "שמירת הלוגו טרם הופעלה במסד הנתונים. יש להריץ את מיגרציית שמירת הלוגו ב-Supabase."
+        : `שמירת הלוגו נכשלה: ${updateError.message}`);
     } else {
       setLogoUrl(publicUrl);
       setMessage("הלוגו נשמר ומוצג כעת בסרגל הצד.");
@@ -70,11 +69,7 @@ export default function LogoSettings({ organizationId, initialLogoUrl }: LogoSet
   async function removeLogo() {
     setBusy(true);
     setMessage(null);
-    const { error: rpcError } = await supabase.rpc("set_organization_logo", { p_logo_url: null });
-    const fallbackResult = rpcError
-      ? await supabase.from("organizations").update({ logo_url: null }).eq("id", organizationId)
-      : null;
-    const error = fallbackResult?.error ?? (rpcError?.code === "PGRST202" ? null : rpcError);
+    const { error } = await supabase.rpc("set_organization_logo", { p_logo_url: null });
     if (error) {
       setMessage(`מחיקת הלוגו נכשלה: ${error.message}`);
     } else {

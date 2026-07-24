@@ -79,10 +79,6 @@ export function DashboardShell({
 
   useEffect(() => {
     let active = true;
-    const cachedLogo = window.localStorage.getItem("financeflow-organization-logo");
-    if (cachedLogo) setLogoUrl(cachedLogo);
-    const cachedAvatar = window.localStorage.getItem("financeflow-user-avatar");
-    if (cachedAvatar) setAvatarUrl(cachedAvatar);
 
     async function loadOrganizationLogo() {
       if (initialLogoUrl) return;
@@ -91,9 +87,8 @@ export function DashboardShell({
       if (!user) return;
 
       const savedAvatar = user.user_metadata?.avatar_url as string | undefined;
-      if (active && savedAvatar) {
-        setAvatarUrl(savedAvatar);
-        window.localStorage.setItem("financeflow-user-avatar", savedAvatar);
+      if (active) {
+        setAvatarUrl(savedAvatar || null);
       }
 
       const { data: profile } = await supabase
@@ -110,9 +105,11 @@ export function DashboardShell({
         .eq("id", profile.organization_id)
         .maybeSingle();
 
-      if (active && organization?.logo_url) {
-        setLogoUrl(organization.logo_url);
-        window.localStorage.setItem("financeflow-organization-logo", organization.logo_url);
+      if (active) {
+        const savedLogo = organization?.logo_url ?? null;
+        setLogoUrl(savedLogo);
+        if (savedLogo) window.localStorage.setItem("financeflow-organization-logo", savedLogo);
+        else window.localStorage.removeItem("financeflow-organization-logo");
       }
     }
 
@@ -128,8 +125,6 @@ export function DashboardShell({
     const handleAvatarChange = (event: Event) => {
       const nextAvatar = (event as CustomEvent<string | null>).detail;
       setAvatarUrl(nextAvatar);
-      if (nextAvatar) window.localStorage.setItem("financeflow-user-avatar", nextAvatar);
-      else window.localStorage.removeItem("financeflow-user-avatar");
     };
     window.addEventListener("user-avatar-change", handleAvatarChange);
 
@@ -155,6 +150,9 @@ export function DashboardShell({
       console.error("LOGOUT ERROR:", error);
       return;
     }
+
+    window.localStorage.removeItem("financeflow-organization-logo");
+    window.localStorage.removeItem("financeflow-user-avatar");
 
     router.replace("/login");
     router.refresh();

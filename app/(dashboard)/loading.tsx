@@ -25,14 +25,14 @@ export default function DashboardLoading() {
       `}</style>
 
       <div className="flex flex-col items-center gap-6">
-        <div className="relative grid h-28 w-28 place-items-center">
+        <div className="relative grid h-44 w-44 place-items-center">
           <span className="ff-loading-ring absolute inset-0 rounded-full border-2 border-[#E8EDF5] border-t-[#C99B2D]" />
-          <div className="ff-loading-logo grid h-20 w-20 place-items-center overflow-hidden rounded-3xl border border-[#C99B2D]/50 bg-white p-2">
+          <div className="ff-loading-logo grid h-32 w-32 place-items-center overflow-hidden rounded-[2rem] border border-[#C99B2D]/50 bg-white p-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="לוגו המשרד" className="h-full w-full object-contain" />
             ) : (
-              <span className="text-lg font-bold tracking-wider text-[#C99B2D]">FF</span>
+              <span className="text-2xl font-bold tracking-wider text-[#C99B2D]">FF</span>
             )}
           </div>
         </div>

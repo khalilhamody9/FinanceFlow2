@@ -51,7 +51,6 @@ export default function AvatarSettings({ organizationId, userId, userName, initi
       setMessage(`שמירת התמונה נכשלה: ${error.message}`);
     } else {
       setAvatarUrl(publicUrl);
-      window.localStorage.setItem("financeflow-user-avatar", publicUrl);
       window.dispatchEvent(new CustomEvent("user-avatar-change", { detail: publicUrl }));
       setMessage("תמונת הפרופיל נשמרה.");
     }
@@ -67,7 +66,6 @@ export default function AvatarSettings({ organizationId, userId, userName, initi
       setMessage(`הסרת התמונה נכשלה: ${error.message}`);
     } else {
       setAvatarUrl(null);
-      window.localStorage.removeItem("financeflow-user-avatar");
       window.dispatchEvent(new CustomEvent("user-avatar-change", { detail: null }));
       setMessage("תמונת הפרופיל הוסרה.");
     }
