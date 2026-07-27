@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Check,
   ClipboardList,
@@ -55,23 +60,41 @@ type Props = {
   services: Service[];
 };
 
+type ServiceLine = {
+  id: string;
+  serviceType: string;
+  amount: string;
+  includesVat: boolean;
+};
+
 type ServiceForm = {
   clientId: string;
   serviceDate: string;
-  serviceType: string;
   assignedTo: string;
-  price: string;
+  serviceLines: ServiceLine[];
   notes: string;
 };
+
+const DEFAULT_VAT_RATE = 0.17;
+const VAT_STORAGE_KEY = "financeflow-vat-rate";
+const VAT_REMINDER_YEAR_KEY = "financeflow-vat-reminder-year";
+
+function createEmptyServiceLine(id: string): ServiceLine {
+  return {
+    id,
+    serviceType: "",
+    amount: "",
+    includesVat: false,
+  };
+}
 
 const today = new Date().toISOString().split("T")[0];
 
 const initialForm: ServiceForm = {
   clientId: "",
   serviceDate: today,
-  serviceType: "",
   assignedTo: "",
-  price: "",
+  serviceLines: [createEmptyServiceLine("line-1")],
   notes: "",
 };
 
@@ -181,6 +204,17 @@ function formatDate(date: string) {
   );
 }
 
+function getLineTotal(line: ServiceLine, vatRate: number) {
+  const amount = Number(line.amount || 0);
+  if (Number.isNaN(amount) || amount < 0) {
+    return 0;
+  }
+
+  return line.includesVat
+    ? Math.round((amount * (1 + vatRate) + Number.EPSILON) * 100) / 100
+    : amount;
+}
+
 export default function ServicesClient({
   organizationId,
   userId,
@@ -205,6 +239,83 @@ const [services, setServices] = useState<Service[]>(
     useState(false);
   const [errorMessage, setErrorMessage] =
     useState("");
+  const [vatRate, setVatRate] = useState<number>(DEFAULT_VAT_RATE);
+  const [showVatReminder, setShowVatReminder] = useState(false);
+  const [isVatEditorOpen, setIsVatEditorOpen] =
+    useState(false);
+  const [vatEditorValue, setVatEditorValue] =
+    useState(vatRate.toString());
+
+  const totalAmount = useMemo(() => {
+    return form.serviceLines.reduce(
+      (total, line) => total + getLineTotal(line, vatRate),
+      0,
+    );
+  }, [form.serviceLines, vatRate]);
+
+  function updateServiceLine(
+    lineId: string,
+    field: keyof ServiceLine,
+    value: string | boolean,
+  ) {
+    setForm((current) => ({
+      ...current,
+      serviceLines: current.serviceLines.map((line) =>
+        line.id === lineId
+          ? {
+              ...line,
+              [field]: value,
+            }
+          : line,
+      ),
+    }));
+  }
+
+  function dismissVatReminder() {
+    setShowVatReminder(false);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      VAT_REMINDER_YEAR_KEY,
+      new Date().getFullYear().toString(),
+    );
+  }
+
+  function saveVatRate() {
+    const parsed = Number(vatEditorValue);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setErrorMessage("יש להזין שיעור מע״מ תקין.");
+      return;
+    }
+
+    setVatRate(parsed);
+    setIsVatEditorOpen(false);
+    setErrorMessage("");
+  }
+
+  function addServiceLine() {
+    setForm((current) => ({
+      ...current,
+      serviceLines: [
+        ...current.serviceLines,
+        createEmptyServiceLine(
+          `line-${current.serviceLines.length + 1}`,
+        ),
+      ],
+    }));
+  }
+
+  function removeServiceLine(lineId: string) {
+    setForm((current) => ({
+      ...current,
+      serviceLines: current.serviceLines.filter(
+        (line) => line.id !== lineId,
+      ),
+    }));
+  }
 
   const sortedClients = useMemo(() => {
     return [...clients].sort((a, b) =>
@@ -223,6 +334,49 @@ const [services, setServices] = useState<Service[]>(
       ),
     );
   }, [employees]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedVatRate =
+      window.localStorage.getItem(
+        VAT_STORAGE_KEY,
+      );
+    if (storedVatRate) {
+      const parsed = Number(storedVatRate);
+      if (!Number.isNaN(parsed)) {
+        setVatRate(parsed);
+        setVatEditorValue(parsed.toString());
+      }
+    }
+
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const reminderYear = Number(
+      window.localStorage.getItem(
+        VAT_REMINDER_YEAR_KEY,
+      ),
+    );
+
+    if (
+      today.getMonth() === 0 &&
+      today.getDate() === 1 &&
+      reminderYear !== currentYear
+    ) {
+      setShowVatReminder(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        VAT_STORAGE_KEY,
+        vatRate.toString(),
+      );
+    }
+  }, [vatRate]);
 
  const filteredServices = useMemo<Service[]>(() => {
   const safeServices = Array.isArray(services)
@@ -365,13 +519,6 @@ const totalServices = useMemo(() => {
       return;
     }
 
-    if (!form.serviceType) {
-      setErrorMessage(
-        "צריך לבחור סוג שירות.",
-      );
-      return;
-    }
-
     if (!form.assignedTo) {
       setErrorMessage(
         "צריך לבחור מטפל בשירות.",
@@ -379,38 +526,63 @@ const totalServices = useMemo(() => {
       return;
     }
 
-    if (!form.price.trim()) {
-      setErrorMessage("צריך להזין מחיר.");
-      return;
-    }
+    const filledLines = form.serviceLines.filter(
+      (line) => line.serviceType || line.amount.trim(),
+    );
 
-    const price = Number(form.price);
-
-    if (
-      Number.isNaN(price) ||
-      price < 0
-    ) {
+    if (filledLines.length === 0) {
       setErrorMessage(
-        "צריך להזין מחיר תקין.",
+        "צריך להזין לפחות שירות אחד.",
       );
       return;
     }
 
+    for (const line of filledLines) {
+      if (!line.serviceType) {
+        setErrorMessage(
+          "צריך לבחור סוג שירות בכל שורה.",
+        );
+        return;
+      }
+
+      if (!line.amount.trim()) {
+        setErrorMessage(
+          "צריך להזין מחיר בכל שורה.",
+        );
+        return;
+      }
+
+      const amount = Number(line.amount);
+      if (
+        Number.isNaN(amount) ||
+        amount < 0
+      ) {
+        setErrorMessage(
+          "צריך להזין מחיר תקין בכל שורה.",
+        );
+        return;
+      }
+    }
+
     setIsSaving(true);
 
-    const { error } = await supabase
-      .from("services")
-      .insert({
+    const rowsToInsert = filledLines.map(
+      (line) => ({
         organization_id: organizationId,
         client_id: form.clientId,
         service_date: form.serviceDate,
-        service_type: form.serviceType,
+        service_type: line.serviceType,
         assigned_to: form.assignedTo,
-        price,
+        price: getLineTotal(line, vatRate),
         notes: form.notes.trim() || null,
         status: "active",
         created_by: userId,
-      });
+      }),
+    );
+
+    const { error } = await supabase
+      .from("services")
+      .insert(rowsToInsert);
 
     if (error) {
       console.error(
@@ -506,6 +678,39 @@ const totalServices = useMemo(() => {
             הוספת שירות חדש
           </button>
         </div>
+
+        {showVatReminder && (
+          <div className="mt-6 rounded-[24px] border border-[#FFDEB9] bg-[#FFF6EA] px-6 py-5 text-[#7A5900] shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-black text-lg text-[#7A5900]">
+                  היום 1/1: עדכון שיעור המע״מ
+                </p>
+                <p className="mt-2 text-sm leading-6">
+                  שיעור המע״מ הוא אחוז ומשתנה מדי פעם. האם לשנות את השיעור או להשאיר אותו כפי שהוא?
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsVatEditorOpen(true)}
+                  className="inline-flex items-center justify-center rounded-full border border-[#D9AE46] bg-[#F7E4B0] px-5 py-3 text-sm font-bold text-[#7A5900] transition hover:bg-[#F1D885]"
+                >
+                  עדכן שיעור מע״מ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={dismissVatReminder}
+                  className="inline-flex items-center justify-center rounded-full border border-[#D9AE46] bg-white px-5 py-3 text-sm font-bold text-[#7A5900] transition hover:bg-[#F7E4B0]"
+                >
+                  השאר כפי שהוא
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center">
           <label className="relative block flex-1">
@@ -660,9 +865,9 @@ const totalServices = useMemo(() => {
             }
           }}
         >
-          <div className="max-h-[96vh] w-full max-w-[1180px] overflow-y-auto rounded-[28px] bg-white shadow-2xl">
-            <div className="relative flex min-h-[125px] items-center justify-center rounded-t-[28px] bg-gradient-to-l from-[#2895CC] to-[#2D83C4] px-6 py-6 text-white">
-              <div className="absolute right-7 top-1/2 -translate-y-1/2 rounded-3xl bg-white/10 p-3">
+          <div className="max-h-[96vh] w-full max-w-[1180px] overflow-y-auto rounded-[28px] bg-[#F7F9FF] shadow-[0_40px_90px_rgba(13,76,171,0.18)] ring-1 ring-[#B7D4FF]">
+            <div className="relative flex min-h-[135px] items-center justify-center rounded-t-[28px] bg-gradient-to-r from-[#0D4CAB] via-[#5B8CFF] to-[#F2C94C] px-6 py-8 text-white">
+              <div className="absolute right-7 top-1/2 -translate-y-1/2 rounded-3xl bg-white/15 p-3 shadow-lg shadow-[#0f4cab]/10">
                 <ClipboardList
                   size={56}
                   strokeWidth={1.8}
@@ -774,57 +979,141 @@ const totalServices = useMemo(() => {
               </section>
 
               <section className="mt-10">
-                <h3 className="text-xl font-black text-[#282B59] sm:text-2xl">
-                  פרטים
-                </h3>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-xl font-black text-[#282B59] sm:text-2xl">
+                    פרטי שירות
+                  </h3>
 
-                <div className="mt-6 grid gap-5 md:grid-cols-2">
-                  <Field label="סוג שירות">
-                    <select
-                      value={form.serviceType}
-                      onChange={(event) =>
-                        updateForm(
-                          "serviceType",
-                          event.target.value,
-                        )
-                      }
-                      className="service-input"
+                  <button
+                    type="button"
+                    onClick={addServiceLine}
+                    className="inline-flex items-center justify-center rounded-full border border-[#0D4CAB] bg-white px-4 py-2 text-sm font-bold text-[#0D4CAB] transition hover:border-[#F2C94C] hover:bg-[#FDF4D0] hover:text-[#0D4CAB] shadow-sm shadow-[#0d4cab]/10"
+                  >
+                    הוסף שירות נוסף
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-6">
+                  {form.serviceLines.map((line, index) => (
+                    <div
+                      key={line.id}
+                      className="rounded-[28px] border border-[#D9E4FF] bg-white p-5 shadow-sm shadow-[#0D4CAB]/5"
                     >
-                      <option value="">
-                        בחר שירות
-                      </option>
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="flex-1">
+                          <Field label={`סוג שירות ${index + 1}`}>
+                            <select
+                              value={line.serviceType}
+                              onChange={(event) =>
+                                updateServiceLine(
+                                  line.id,
+                                  "serviceType",
+                                  event.target.value,
+                                )
+                              }
+                              className="service-input"
+                            >
+                              <option value="">
+                                בחר שירות
+                              </option>
 
-                      {Object.entries(
-                        serviceTypeLabels,
-                      ).map(
-                        ([value, label]) => (
-                          <option
-                            key={value}
-                            value={value}
+                              {Object.entries(
+                                serviceTypeLabels,
+                              ).map(([value, label]) => (
+                                <option
+                                  key={value}
+                                  value={value}
+                                >
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </div>
+
+                        <div className="flex-1">
+                          <Field label={`מחיר ${index + 1}`}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={line.amount}
+                              onChange={(event) =>
+                                updateServiceLine(
+                                  line.id,
+                                  "amount",
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="0.00"
+                              className="service-input"
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="flex flex-1 flex-col gap-3">
+                          <Field label="כולל או ללא מע״מ">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateServiceLine(
+                                    line.id,
+                                    "includesVat",
+                                    false,
+                                  )
+                                }
+                                className={`rounded-full border px-4 py-3 text-sm font-bold transition ${
+                                  !line.includesVat
+                                    ? "border-[#3F66FF] bg-[#3F66FF] text-white"
+                                    : "border-[#D9DBE8] bg-white text-[#4F5263]"
+                                }`}
+                              >
+                                ללא מע״מ
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateServiceLine(
+                                    line.id,
+                                    "includesVat",
+                                    true,
+                                  )
+                                }
+                                className={`rounded-full border px-4 py-3 text-sm font-bold transition ${
+                                  line.includesVat
+                                    ? "border-[#3F66FF] bg-[#3F66FF] text-white"
+                                    : "border-[#D9DBE8] bg-white text-[#4F5263]"
+                                }`}
+                              >
+                                כולל מע״מ
+                              </button>
+                            </div>
+                          </Field>
+
+                          <div className="rounded-3xl border border-[#D9DCFF] bg-white px-4 py-3 text-sm font-black text-[#2B2E55]">
+                            סכום סופי:
+                            <span className="float-left text-[#4164F5]">
+                              {formatCurrency(getLineTotal(line, vatRate))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {form.serviceLines.length > 1 && (
+                        <div className="mt-4 text-left">
+                          <button
+                            type="button"
+                            onClick={() => removeServiceLine(line.id)}
+                            className="text-sm font-bold text-[#FF4E5D] transition hover:text-[#D22A3A]"
                           >
-                            {label}
-                          </option>
-                        ),
+                            הסר שירות זה
+                          </button>
+                        </div>
                       )}
-                    </select>
-                  </Field>
-
-                  <Field label="מחיר">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.price}
-                      onChange={(event) =>
-                        updateForm(
-                          "price",
-                          event.target.value,
-                        )
-                      }
-                      placeholder="0.00"
-                      className="service-input"
-                    />
-                  </Field>
+                    </div>
+                  ))}
                 </div>
               </section>
 
@@ -832,7 +1121,7 @@ const totalServices = useMemo(() => {
                 <div className="w-full max-w-[550px] rounded-[25px] border-2 border-[#D9DCFF] px-7 py-5 text-xl font-black text-[#2B2E55]">
                   סה״כ:
                   <strong className="float-left text-[#4164F5]">
-                    {formatCurrency(form.price)}
+                    {formatCurrency(totalAmount)}
                   </strong>
                 </div>
               </div>
@@ -865,7 +1154,7 @@ const totalServices = useMemo(() => {
                   type="button"
                   onClick={closeModal}
                   disabled={isSaving}
-                  className="min-h-14 rounded-xl border border-[#D5D8E2] px-9 font-bold text-[#626679] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-14 rounded-xl border border-[#B7D4FF] bg-white px-9 font-bold text-[#102144] transition hover:bg-[#F2F8FF] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   ביטול
                 </button>
@@ -874,7 +1163,7 @@ const totalServices = useMemo(() => {
                   type="button"
                   onClick={createService}
                   disabled={isSaving}
-                  className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-gradient-to-l from-[#4A9EFF] to-[#3C58FF] px-12 text-lg font-bold text-white shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[#0D4CAB] via-[#5B8CFF] to-[#F2C94C] px-12 text-lg font-bold text-white shadow-lg shadow-[#0d4cab]/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Check size={22} />
 
@@ -888,15 +1177,84 @@ const totalServices = useMemo(() => {
         </div>
       )}
 
+      {isVatEditorOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#141B29]/65 p-3 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsVatEditorOpen(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-[#222642]">
+                  עדכון שיעור מע״מ
+                </h2>
+                <p className="mt-2 text-sm text-[#5C5F78]">
+                  עדכן את שיעור המע״מ המשמש לחישוב סכום כולל מע״מ.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsVatEditorOpen(false)}
+                className="rounded-full p-2 text-[#6671A2] transition hover:bg-[#F1F4FF]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <label className="block text-sm font-bold text-[#34375D]">
+                שיעור מע״מ
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={vatEditorValue}
+                onChange={(event) =>
+                  setVatEditorValue(event.target.value)
+                }
+                className="w-full rounded-2xl border border-[#D9DBE8] bg-[#F7F8FB] px-4 py-3 text-sm outline-none transition focus:border-[#4167FF] focus:ring-4 focus:ring-[#4167FF]/10"
+              />
+              <div className="rounded-3xl border border-[#D9DCFF] bg-[#FAFBFF] px-4 py-4 text-sm text-[#2B2E55]">
+                שיעור המע״מ הנוכחי: <strong>{(vatRate * 100).toFixed(2)}%</strong>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsVatEditorOpen(false)}
+                className="rounded-xl border border-[#D5D8E2] px-5 py-3 text-sm font-bold text-[#626679] transition hover:bg-[#F7F8FA]"
+              >
+                ביטול
+              </button>
+
+              <button
+                type="button"
+                onClick={saveVatRate}
+                className="rounded-xl bg-gradient-to-r from-[#0D4CAB] via-[#5B8CFF] to-[#F2C94C] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#0d4cab]/20 transition hover:brightness-105"
+              >
+                שמור שיעור
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         .service-input {
           width: 100%;
           min-height: 58px;
-          border: 2px solid #dfe1ff;
+          border: 2px solid #c5dcff;
           border-radius: 999px;
-          background: #f8f9fd;
+          background: #eef6ff;
           padding: 0 20px;
-          color: #222642;
+          color: #102144;
           outline: none;
           transition:
             border-color 0.2s ease,
@@ -905,10 +1263,10 @@ const totalServices = useMemo(() => {
         }
 
         .service-input:focus {
-          border-color: #5875ff;
+          border-color: #0d4cab;
           background: #ffffff;
           box-shadow: 0 0 0 4px
-            rgba(75, 101, 255, 0.1);
+            rgba(13, 76, 171, 0.12);
         }
 
         textarea.service-input {

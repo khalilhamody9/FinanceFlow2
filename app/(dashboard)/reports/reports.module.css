@@ -21,6 +21,19 @@
 .payments { background: linear-gradient(135deg, #347fca, #57a3ea); }
 .balance { background: linear-gradient(135deg, #62bfe1, #92d8f1); }
 .summary .negative { color: #fff7fa; }
+.completionBlock { margin-bottom: 30px; }
+.completionCard { background: #fff; border: 1px solid #e9eaf0; border-radius: 24px; box-shadow: 0 11px 32px rgba(48, 53, 84, .08); overflow: hidden; }
+.completionCard header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 28px; border-bottom: 1px solid #f0f1f6; }
+.completionCard header h2 { margin: 0; font-size: 18px; color: #44475e; }
+.completionCard header p { margin: 4px 0 0; color: #7f85a0; font-size: 13px; }
+.completionCard header span { min-width: 70px; display: inline-flex; align-items: center; justify-content: center; padding: 9px 14px; color: #2f64d6; background: #eef4ff; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.completionRows { padding: 20px 28px 26px; display: grid; gap: 18px; }
+.completionRow { display: grid; grid-template-columns: minmax(0, 1fr) 130px 70px; gap: 14px; align-items: center; }
+.completionRow div:first-child { display: flex; flex-direction: column; gap: 6px; }
+.completionRow strong { color: #2c3155; font-size: 14px; }
+.completionRow small { color: #7f85a0; font-size: 12px; }
+.progressBar { position: relative; height: 10px; border-radius: 999px; background: #f2f4fb; overflow: hidden; }
+.progressBar span { position: absolute; inset: 0; display: block; background: linear-gradient(90deg, #38bdf8, #2563eb); border-radius: 999px; }
 .panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
 .panel { min-height: 330px; overflow: hidden; background: #fff; border: 1px solid #e9eaf0; box-shadow: 0 9px 24px rgba(48, 53, 84, .06); }
 .panel header { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #e6e7ed; }
@@ -40,5 +53,17 @@
 .backups > div { min-height: 50px; display: grid; grid-template-columns: repeat(3, 1fr); align-items: center; padding: 0 18px; border-bottom: 1px solid #eff0f4; text-align: center; }
 .backups > div:first-child { color: #777a8f; background: #fafbfc; font-size: 12px; font-weight: 700; }
 .backups b { color: #5c5f70; font-size: 12px; font-weight: 500; }
+.feeSection { margin-top: 30px; background: #fff; border: 1px solid #e9eaf0; border-radius: 30px; box-shadow: 0 14px 32px rgba(48, 53, 84, .08); padding: 28px; }
+.feeHeader { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 20px; flex-wrap: wrap; }
+.feeHeader p { margin: 0; color: #777b96; font-size: 13px; }
+.feeHeader h2 { margin: 4px 0 0; color: #24273d; font-size: 22px; }
+.yearButtons { display: flex; flex-wrap: wrap; gap: 10px; }
+.yearButtons button { min-width: 92px; border: 1px solid #dfe1eb; border-radius: 14px; padding: 10px 16px; background: #fff; color: #4d5d85; font-weight: 700; cursor: pointer; }
+.yearButtons button.active { border-color: #4d55e9; background: #eef2ff; color: #2c3aaa; }
+.feeSummary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 22px; }
+.feeMetric { display: flex; flex-direction: column; gap: 10px; }
+.feeMetric strong { font-size: 22px; color: #232746; }
+.feeMetric span { color: #7e85a1; font-size: 13px; }
+.feeChart { width: 100%; min-height: 300px; }
 @media (max-width: 1100px) { .summaryGrid, .panels { grid-template-columns: 1fr 1fr; } .panels .panel:last-child { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .page { padding: 20px 14px 40px; } .titleRow > span { display: none; } .filters, .summaryGrid, .panels { grid-template-columns: 1fr; gap: 14px; } .panels .panel:last-child { grid-column: auto; } .summary { min-height: 145px; padding: 24px; border-radius: 22px; } }

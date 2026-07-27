@@ -43,6 +43,9 @@ type Customer = {
   vat_file: string | null;
   po_box: string | null;
   occupation: string | null;
+  marital_status: string | null;
+  children_count: number | null;
+  has_academic_degree: boolean;
   score: number | null;
   has_inventory: boolean;
   is_detailed: boolean;
@@ -56,8 +59,8 @@ type Customer = {
   status: string | null;
   notes: string | null;
   fee_amount: number | null;
-payment_method: string | null;
-payment_frequency: string | null;
+  payment_method: string | null;
+  payment_frequency: string | null;
 };
 
 type NewCustomerForm = {
@@ -82,11 +85,15 @@ type NewCustomerForm = {
   vatFile: string;
   poBox: string;
   occupation: string;
-  score: string; status: string;
+  maritalStatus: string;
+  childrenCount: string;
+  hasAcademicDegree: boolean;
+  score: string;
+  status: string;
   notes: string;
-    feeAmount: string;
-paymentMethod: string;
-paymentFrequency: string;
+  feeAmount: string;
+  paymentMethod: string;
+  paymentFrequency: string;
   hasInventory: boolean;
   isDetailed: boolean;
   hasAudit: boolean;
@@ -95,7 +102,6 @@ paymentFrequency: string;
   hasCapitalDeclaration: boolean;
   hasPension: boolean;
   hasBenefit: boolean;
-
 };
 
 type CustomersListProps = {
@@ -125,11 +131,15 @@ const EMPTY_CUSTOMER_FORM: NewCustomerForm = {
   vatFile: "",
   poBox: "",
   occupation: "",
-  score: "0", status: "active",
+  maritalStatus: "single",
+  childrenCount: "0",
+  hasAcademicDegree: false,
+  score: "0",
+  status: "active",
   notes: "",
   feeAmount: "",
-paymentMethod: "",
-paymentFrequency: "",
+  paymentMethod: "",
+  paymentFrequency: "",
   hasInventory: false,
   isDetailed: false,
   hasAudit: false,
@@ -138,7 +148,6 @@ paymentFrequency: "",
   hasCapitalDeclaration: false,
   hasPension: false,
   hasBenefit: false,
-  
 };
 
 const INK = "#0B2348";
@@ -164,7 +173,7 @@ const TAGS = [
   "856",
   "ה.הון",
   "פנסיה ד.א",
-  "בנפיט",
+  "finbot",
 ];
 const TAG_FIELD_MAP: Record<string, keyof Customer> = {
   מלאי: "has_inventory",
@@ -174,7 +183,7 @@ const TAG_FIELD_MAP: Record<string, keyof Customer> = {
   "856": "has_856",
   "ה.הון": "has_capital_declaration",
   "פנסיה ד.א": "has_pension",
-  בנפיט: "has_benefit",
+  finbot: "has_benefit",
 };
 const COLUMNS = [
   "מס׳ תיק",
@@ -186,6 +195,7 @@ const COLUMNS = [
   "תיק מס הכנסה",
   "תיק ניכויים",
   "סטטוס",
+  "פעולות",
 ];
 
 const VAT_REPORT_TYPES = ["חודשי", "דו חודשי", "לא רלוונטי"];
@@ -201,12 +211,15 @@ export default function CustomersList({
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [formError, setFormError] = useState("");
   const [newCustomer, setNewCustomer] =
     useState<NewCustomerForm>(EMPTY_CUSTOMER_FORM);
-const [activeTags, setActiveTags] = useState<string[]>([]);  const loadCustomers = useCallback(async () => {
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+
+  const loadCustomers = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
@@ -235,6 +248,9 @@ const [activeTags, setActiveTags] = useState<string[]>([]);  const loadCustomers
 vat_file,
 po_box,
 occupation,
+marital_status,
+children_count,
+has_academic_degree,
 score,        status,
 fee_amount,
 payment_method,
@@ -269,7 +285,7 @@ has_benefit,
   }, [loadCustomers]);
 
   useEffect(() => {
-    if (!showAddCustomer) {
+    if (!showCustomerForm) {
       return;
     }
 
@@ -282,9 +298,61 @@ has_benefit,
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAddCustomer, savingCustomer]);
+  }, [showCustomerForm, savingCustomer]);
 
-  async function handleAddCustomer(
+  function mapCustomerToForm(customer: Customer): NewCustomerForm {
+    return {
+      firstName: customer.first_name || "",
+      lastName: customer.last_name || "",
+      idNumber: customer.id_number || "",
+      birthDate: customer.birth_date || "",
+      phone: customer.phone || "",
+      secondPhone: customer.second_phone || "",
+      email: customer.email || "",
+      city: customer.city || "",
+      street: customer.street || "",
+      houseNumber: customer.house_number || "",
+      zipCode: customer.zip_code || "",
+      businessName: customer.business_name || "",
+      businessType: customer.business_type || "",
+      businessNumber: customer.business_number || "",
+      businessOpenDate: customer.business_open_date || "",
+      vatReportType: customer.vat_report_type || "",
+      incomeTaxFile: customer.income_tax_file || "",
+      deductionsFile: customer.deductions_file || "",
+      vatFile: customer.vat_file || "",
+      poBox: customer.po_box || "",
+      occupation: customer.occupation || "",
+      maritalStatus: customer.marital_status || "single",
+      childrenCount:
+        customer.children_count === null || customer.children_count === undefined
+          ? "0"
+          : String(customer.children_count),
+      hasAcademicDegree: customer.has_academic_degree,
+      score:
+        customer.score === null || customer.score === undefined
+          ? "0"
+          : String(customer.score),
+      status: customer.status || "active",
+      notes: customer.notes || "",
+      feeAmount:
+        customer.fee_amount === null || customer.fee_amount === undefined
+          ? ""
+          : String(customer.fee_amount),
+      paymentMethod: customer.payment_method || "",
+      paymentFrequency: customer.payment_frequency || "",
+      hasInventory: customer.has_inventory,
+      isDetailed: customer.is_detailed,
+      hasAudit: customer.has_audit,
+      hasFuel: customer.has_fuel,
+      has856: customer.has_856,
+      hasCapitalDeclaration: customer.has_capital_declaration,
+      hasPension: customer.has_pension,
+      hasBenefit: customer.has_benefit,
+    };
+  }
+
+  async function handleSaveCustomer(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -301,46 +369,54 @@ has_benefit,
 
     setSavingCustomer(true);
 
-    const { data, error } = await supabase
-      .from("clients")
-      .insert({
-        organization_id: organizationId,
-        first_name: firstName,
-        last_name: lastName,
-        id_number: newCustomer.idNumber.trim() || null,
-        birth_date: newCustomer.birthDate || null,
-        phone: newCustomer.phone.trim() || null,
-        second_phone: newCustomer.secondPhone.trim() || null,
-        email: newCustomer.email.trim() || null,
-        city: newCustomer.city.trim() || null,
-        street: newCustomer.street.trim() || null,
-        house_number: newCustomer.houseNumber.trim() || null,
-        zip_code: newCustomer.zipCode.trim() || null,
-        business_name: newCustomer.businessName.trim() || null,
-        business_type: newCustomer.businessType || null,
-        business_number: newCustomer.businessNumber.trim() || null,
-        business_open_date: newCustomer.businessOpenDate || null,
-        vat_report_type: newCustomer.vatReportType || null,
-        income_tax_file: newCustomer.incomeTaxFile.trim() || null,
-        deductions_file: newCustomer.deductionsFile.trim() || null,
-        vat_file: newCustomer.vatFile.trim() || null,
-        po_box: newCustomer.poBox.trim() || null,
-        occupation: newCustomer.occupation.trim() || null,
-        score: Number(newCustomer.score) || 0,
-        fee_amount: Number(newCustomer.feeAmount) || 0,
-payment_method: newCustomer.paymentMethod || null,
-payment_frequency: newCustomer.paymentFrequency || null,
-        has_inventory: newCustomer.hasInventory,
-        is_detailed: newCustomer.isDetailed,
-        has_audit: newCustomer.hasAudit,
-        has_fuel: newCustomer.hasFuel,
-        has_856: newCustomer.has856,
-        has_capital_declaration: newCustomer.hasCapitalDeclaration,
-        has_pension: newCustomer.hasPension,
-        has_benefit: newCustomer.hasBenefit,
-        status: newCustomer.status,
-        notes: newCustomer.notes.trim() || null,
-      })
+    const payload = {
+      organization_id: organizationId,
+      first_name: firstName,
+      last_name: lastName,
+      id_number: newCustomer.idNumber.trim() || null,
+      birth_date: newCustomer.birthDate || null,
+      phone: newCustomer.phone.trim() || null,
+      second_phone: newCustomer.secondPhone.trim() || null,
+      email: newCustomer.email.trim() || null,
+      city: newCustomer.city.trim() || null,
+      street: newCustomer.street.trim() || null,
+      house_number: newCustomer.houseNumber.trim() || null,
+      zip_code: newCustomer.zipCode.trim() || null,
+      business_name: newCustomer.businessName.trim() || null,
+      business_type: newCustomer.businessType || null,
+      business_number: newCustomer.businessNumber.trim() || null,
+      business_open_date: newCustomer.businessOpenDate || null,
+      vat_report_type: newCustomer.vatReportType || null,
+      income_tax_file: newCustomer.incomeTaxFile.trim() || null,
+      deductions_file: newCustomer.deductionsFile.trim() || null,
+      vat_file: newCustomer.vatFile.trim() || null,
+      po_box: newCustomer.poBox.trim() || null,
+      occupation: newCustomer.occupation.trim() || null,
+      marital_status: newCustomer.maritalStatus || null,
+      children_count:
+        newCustomer.childrenCount === "" ? null : Number(newCustomer.childrenCount),
+      has_academic_degree: newCustomer.hasAcademicDegree,
+      score: Number(newCustomer.score) || 0,
+      fee_amount: Number(newCustomer.feeAmount) || 0,
+      payment_method: newCustomer.paymentMethod || null,
+      payment_frequency: newCustomer.paymentFrequency || null,
+      has_inventory: newCustomer.hasInventory,
+      is_detailed: newCustomer.isDetailed,
+      has_audit: newCustomer.hasAudit,
+      has_fuel: newCustomer.hasFuel,
+      has_856: newCustomer.has856,
+      has_capital_declaration: newCustomer.hasCapitalDeclaration,
+      has_pension: newCustomer.hasPension,
+      has_benefit: newCustomer.hasBenefit,
+      status: newCustomer.status,
+      notes: newCustomer.notes.trim() || null,
+    };
+
+    const query = editingCustomerId
+      ? supabase.from("clients").update(payload).eq("id", editingCustomerId)
+      : supabase.from("clients").insert(payload);
+
+    const { data, error } = await query
       .select(`
         id,
         first_name,
@@ -361,27 +437,31 @@ payment_frequency: newCustomer.paymentFrequency || null,
         vat_report_type,
         income_tax_file,
         deductions_file,
-vat_file,
-po_box,
-occupation,
-score,        
-fee_amount,
-payment_method,
-payment_frequency,
-has_inventory,
-is_detailed,
-has_audit,
-has_fuel,
-has_856,
-has_capital_declaration,
-has_pension,
-has_benefit,status,
+        vat_file,
+        po_box,
+        occupation,
+        marital_status,
+        children_count,
+        has_academic_degree,
+        score,
+        fee_amount,
+        payment_method,
+        payment_frequency,
+        has_inventory,
+        is_detailed,
+        has_audit,
+        has_fuel,
+        has_856,
+        has_capital_declaration,
+        has_pension,
+        has_benefit,
+        status,
         notes
       `)
       .single();
 
     if (error) {
-      console.error("ADD CUSTOMER ERROR:", error);
+      console.error("SAVE CUSTOMER ERROR:", error);
       setFormError(
         error.message || "שמירת הלקוח נכשלה. בדוק את הנתונים ונסה שוב.",
       );
@@ -389,13 +469,19 @@ has_benefit,status,
       return;
     }
 
-    setCustomers((currentCustomers) => [
-      data as Customer,
-      ...currentCustomers,
-    ]);
+    if (editingCustomerId) {
+      setCustomers((currentCustomers) =>
+        currentCustomers.map((customer) =>
+          customer.id === editingCustomerId ? (data as Customer) : customer,
+        ),
+      );
+    } else {
+      setCustomers((currentCustomers) => [data as Customer, ...currentCustomers]);
+    }
 
     setNewCustomer(EMPTY_CUSTOMER_FORM);
-    setShowAddCustomer(false);
+    setEditingCustomerId(null);
+    setShowCustomerForm(false);
     setSavingCustomer(false);
   }
 
@@ -404,7 +490,8 @@ has_benefit,status,
       return;
     }
 
-    setShowAddCustomer(false);
+    setShowCustomerForm(false);
+    setEditingCustomerId(null);
     setFormError("");
     setNewCustomer(EMPTY_CUSTOMER_FORM);
   }
@@ -420,7 +507,34 @@ has_benefit,status,
   }
 
   function isActiveCustomer(status: string | null) {
-    return status?.toLowerCase() === "active";
+    const normalized = status?.toLowerCase();
+
+    return (
+      normalized === "active" || normalized === "active-no-activity"
+    );
+  }
+
+  function getCustomerStatusLabel(status: string | null) {
+    const normalized = status?.toLowerCase();
+
+    if (normalized === "active-no-activity") {
+      return {
+        label: "פעיל ללא פעילות",
+        color: "#D97706",
+      };
+    }
+
+    if (normalized === "active") {
+      return {
+        label: "פעיל",
+        color: "#1E7B3B",
+      };
+    }
+
+    return {
+      label: "לא פעיל",
+      color: MUTE,
+    };
   }
 const filteredCustomers = useMemo(() => {
   if (activeTags.length === 0) {
@@ -430,7 +544,7 @@ const filteredCustomers = useMemo(() => {
   return customers.filter((customer) =>
     activeTags.every((tag) => {
       if (tag === "פעיל") {
-        return customer.status?.toLowerCase() === "active";
+        return isActiveCustomer(customer.status);
       }
 
       const field = TAG_FIELD_MAP[tag];
@@ -460,7 +574,9 @@ const filteredCustomers = useMemo(() => {
                 type="button"
                 onClick={() => {
                   setFormError("");
-                  setShowAddCustomer(true);
+                  setEditingCustomerId(null);
+                  setNewCustomer(EMPTY_CUSTOMER_FORM);
+                  setShowCustomerForm(true);
                 }}
                 className="pill-btn dash-focusable flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold"
                 style={{
@@ -713,13 +829,23 @@ const filteredCustomers = useMemo(() => {
                         </td>
 
                         <td
-                          className="p-3 font-medium"
+                          className="p-3"
                           style={{
-                            color: INK,
+                            color: SLATE,
                             borderBottom: `1px solid ${BORDER}`,
                           }}
                         >
-                          {customer.first_name} {customer.last_name}
+                          <button
+                            type="button"
+                            className="text-sm font-medium transition-colors hover:text-[#4F46E5]"
+                            onClick={() => {
+                              setEditingCustomerId(customer.id);
+                              setNewCustomer(mapCustomerToForm(customer));
+                              setShowCustomerForm(true);
+                            }}
+                          >
+                            {customer.first_name} {customer.last_name}
+                          </button>
                         </td>
 
                         <td
@@ -786,22 +912,37 @@ const filteredCustomers = useMemo(() => {
                           className="p-3"
                           style={{ borderBottom: `1px solid ${BORDER}` }}
                         >
-                          {isActiveCustomer(customer.status) ? (
-                            <span
-                              className="flex items-center gap-1 text-xs font-medium"
-                              style={{ color: "#1E7B3B" }}
-                            >
+                          <span
+                            className="flex items-center gap-1 text-xs font-medium"
+                            style={{ color: getCustomerStatusLabel(customer.status).color }}
+                          >
+                            {getCustomerStatusLabel(customer.status).label === "פעיל" && (
                               <CheckCircle2 size={14} />
-                              פעיל
-                            </span>
-                          ) : (
-                            <span
-                              className="text-xs font-medium"
-                              style={{ color: MUTE }}
-                            >
-                              לא פעיל
-                            </span>
-                          )}
+                            )}
+                            {getCustomerStatusLabel(customer.status).label}
+                          </span>
+                        </td>
+
+                        <td
+                          className="p-3"
+                          style={{ borderBottom: `1px solid ${BORDER}` }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCustomerId(customer.id);
+                              setNewCustomer(mapCustomerToForm(customer));
+                              setShowCustomerForm(true);
+                            }}
+                            className="rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:border-indigo-300 hover:text-indigo-700"
+                            style={{
+                              color: INDIGO,
+                              borderColor: INDIGO,
+                              background: "#FFFFFF",
+                            }}
+                          >
+                            עריכה
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -817,7 +958,7 @@ const filteredCustomers = useMemo(() => {
       </main>
 
       {/* מודל הוספת לקוח */}
-      {showAddCustomer && (
+      {showCustomerForm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{
@@ -854,7 +995,7 @@ const filteredCustomers = useMemo(() => {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold" style={{ color: INK }}>
-                    הוספת לקוח חדש
+                    {editingCustomerId ? "עריכת לקוח" : "הוספת לקוח חדש"}
                   </h2>
                   <p className="text-xs" style={{ color: MUTE }}>
                     מלא/י את פרטי הלקוח ולחצ/י על שמירה בסיום
@@ -879,8 +1020,8 @@ const filteredCustomers = useMemo(() => {
 
             {/* גוף הטופס */}
             <form
-              id="add-customer-form"
-              onSubmit={handleAddCustomer}
+              id="customer-form"
+              onSubmit={handleSaveCustomer}
               className="flex-1 overflow-y-auto px-7 py-6"
             >
               <FormSection
@@ -968,6 +1109,51 @@ const filteredCustomers = useMemo(() => {
                     className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                     style={inputStyle}
                   />
+                </FormField>
+
+                <FormField label="סטטוס משפחה">
+                  <select
+                    value={newCustomer.maritalStatus}
+                    onChange={(event) =>
+                      updateNewCustomer("maritalStatus", event.target.value)
+                    }
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={{ ...inputStyle, background: "#FFFFFF" }}
+                  >
+                    <option value="single">רווק/ה</option>
+                    <option value="married">נשוי/אה</option>
+                    <option value="divorced">גרוש/ה</option>
+                    <option value="widowed">אלמנ/ית</option>
+                  </select>
+                </FormField>
+
+                <FormField label="מספר ילדים">
+                  <input
+                    type="number"
+                    min="0"
+                    value={newCustomer.childrenCount}
+                    onChange={(event) =>
+                      updateNewCustomer("childrenCount", event.target.value)
+                    }
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={inputStyle}
+                  />
+                </FormField>
+
+                <FormField label="תואר אקדמי">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={newCustomer.hasAcademicDegree}
+                      onChange={(event) =>
+                        updateNewCustomer("hasAcademicDegree", event.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm" style={{ color: INK }}>
+                      יש תואר אקדמי
+                    </span>
+                  </label>
                 </FormField>
               </FormSection>
 
@@ -1180,6 +1366,7 @@ const filteredCustomers = useMemo(() => {
                     style={{ ...inputStyle, background: "#FFFFFF" }}
                   >
                     <option value="active">פעיל</option>
+                    <option value="active-no-activity">פעיל ללא פעילות</option>
                     <option value="inactive">לא פעיל</option>
                   </select>
                 </FormField>
@@ -1354,7 +1541,7 @@ const filteredCustomers = useMemo(() => {
             >
               <button
                 type="submit"
-                form="add-customer-form"
+                form="customer-form"
                 disabled={savingCustomer}
                 className="flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: INDIGO }}
@@ -1365,7 +1552,11 @@ const filteredCustomers = useMemo(() => {
                     style={{ borderTopColor: "transparent" }}
                   />
                 )}
-                {savingCustomer ? "שומר..." : "שמירת לקוח"}
+                {savingCustomer
+                  ? "שומר..."
+                  : editingCustomerId
+                  ? "שמירת עדכון"
+                  : "שמירת לקוח"}
               </button>
 
               <button

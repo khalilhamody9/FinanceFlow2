@@ -12,6 +12,7 @@ import {
   Settings,
   Search,
   Bell,
+  ClipboardList,
 } from "lucide-react";
 
 const INK = "#0B2348";
@@ -25,6 +26,7 @@ const BORDER = "#E8EDF5";
 const SIDE_NAV = [
   { icon: Home, label: "ראשי", href: "/dashboard" },
   { icon: Users, label: "לקוחות", href: "/clients" },
+  { icon: ClipboardList, label: "משימות", href: "/tasks" },
   { icon: FileText, label: "דוחות", href: "/reports" },
   { icon: Settings, label: "הגדרות", href: "/settings" },
 ];
