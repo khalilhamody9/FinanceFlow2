@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CalendarDays, ChevronDown, DatabaseBackup, PackageOpen, ReceiptText, WalletCards, X } from "lucide-react";
 import styles from "./reports.module.css";
+import { createClient } from "@/lib/supabase/client";
 
 type Client = { id: string; first_name: string | null; last_name: string | null; business_name: string | null };
 type PaymentLine = { check_number: string | null; check_date: string | null; check_status: string | null };
@@ -44,25 +45,14 @@ export default function ReportsClient({
     const paid = paymentRows.filter((item) => item.status !== "cancelled").reduce((sum, item) => sum + Number(item.total_amount), 0);
     const checks = paymentRows.filter((item) => item.payment_method === "check" && item.payment_lines?.some((line) => line.check_status !== "cleared"));
     const alerts = serviceRows.filter((item) => item.status !== "completed" && item.status !== "cancelled").slice(0, 5);
-   
-    const vatRows = serviceRows.filter((item) => item.service_type === "vat_report");
-    const deductionsRows = serviceRows.filter((item) => item.service_type === "deductions_report");
-    const vatCompleted = vatRows.filter((item) => item.status === "completed").length;
-    const deductionsCompleted = deductionsRows.filter((item) => item.status === "completed").length;
-    const vatPercent = vatRows.length ? Math.round((vatCompleted / vatRows.length) * 100) : 0;
-    const deductionsPercent = deductionsRows.length ? Math.round((deductionsCompleted / deductionsRows.length) * 100) : 0;
-    const overallTotal = vatRows.length + deductionsRows.length;
-    const overallCompleted = vatCompleted + deductionsCompleted;
-    const overallPercent = overallTotal ? Math.round((overallCompleted / overallTotal) * 100) : 0;
-    return { charges, paid, balance: paid - charges, checks, alerts, vatRows, deductionsRows, vatPercent, deductionsPercent, overallPercent, vatCompleted, deductionsCompleted };
+
+    return { charges, paid, balance: paid - charges, checks, alerts };
   }, [payments, services, from, to, clientId]);
 
   const yearOptions = useMemo(() => {
-    const values = Array.from(new Set(services.map((service) => service.service_date.slice(0, 4))));
-    const sorted = values.sort((a, b) => Number(b) - Number(a));
-    if (!sorted.includes(selectedYear)) sorted.unshift(selectedYear);
-    return sorted;
-  }, [services, selectedYear]);
+    const currentYear = new Date().getFullYear();
+    return [String(currentYear), String(currentYear - 1)];
+  }, []);
 
   const yearlyFees = useMemo(() => {
     const months = Array.from({ length: 12 }, (_, index) => ({ month: monthName(index), fees: 0 }));
@@ -78,6 +68,131 @@ export default function ReportsClient({
   }, [services, selectedYear, clientId]);
 
   const totalFeesThisYear = yearlyFees.reduce((sum, month) => sum + month.fees, 0);
+  type MonthlyReportRow = {
+    client_id: string;
+    reporting_year: number;
+    reporting_month: number;
+    vat_status: string | null;
+    income_tax_deductions_status: string | null;
+    national_insurance_deductions_status: string | null;
+  };
+  const [monthlyReports, setMonthlyReports] = useState<MonthlyReportRow[] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        const supabase = createClient();
+        // determine year range from from/to
+        const fromDate = from ? new Date(from) : new Date(2000, 0, 1);
+        const toDate = to ? new Date(to) : new Date();
+        const years: number[] = [];
+        for (let y = fromDate.getFullYear(); y <= toDate.getFullYear(); y++) years.push(y);
+
+        const { data, error } = await supabase
+          .from("monthly_reports")
+          .select("client_id,reporting_year,reporting_month,vat_status,income_tax_deductions_status,national_insurance_deductions_status")
+          .in("reporting_year", years);
+        if (error) {
+          console.warn("Failed to load monthly_reports:", error.message);
+          if (mounted) setMonthlyReports([]);
+          return;
+        }
+        // filter by exact month range
+        const filtered = (data || []).filter((r: any) => {
+          const d = new Date(r.reporting_year, r.reporting_month - 1, 1);
+          return d >= fromDate && d <= toDate;
+        }) as MonthlyReportRow[];
+        if (mounted) setMonthlyReports(filtered);
+      } catch (err) {
+        console.warn(err);
+        if (mounted) setMonthlyReports([]);
+      }
+    }
+    void load();
+    return () => { mounted = false; };
+  }, [from, to]);
+
+  const vatSubmissionSummary = useMemo(() => {
+    // Prefer monthly_reports because it reflects the shared monthly reporting status.
+    if (monthlyReports && monthlyReports.length > 0) {
+      const totalClients = new Set<string>();
+      const submittedClients = new Set<string>();
+
+      monthlyReports.forEach((row) => {
+        if (clientId && row.client_id !== clientId) return;
+        totalClients.add(row.client_id);
+        if (row.vat_status === "ready") submittedClients.add(row.client_id);
+      });
+
+      const total = totalClients.size;
+      const completed = submittedClients.size;
+      const percent = total ? Math.round((completed / total) * 100) : 0;
+      return { total, completed, percent };
+    }
+
+    // Fallback to vat_report services when monthly_reports is unavailable.
+    const vatRows = services.filter(
+      (item) =>
+        (!from || item.service_date >= from) &&
+        (!to || item.service_date <= to) &&
+        item.service_type === "vat_report" &&
+        (!clientId || item.client_id === clientId),
+    );
+
+    const totalClients = new Set<string>();
+    const submittedClients = new Set<string>();
+    vatRows.forEach((row) => {
+      totalClients.add(row.client_id);
+      if (row.status === "completed" || row.status === "ready") submittedClients.add(row.client_id);
+    });
+
+    const total = totalClients.size;
+    const completed = submittedClients.size;
+    const percent = total ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, percent };
+  }, [services, from, to, clientId, monthlyReports]);
+
+  const deductionsSubmissionSummary = useMemo(() => {
+    // Prefer monthly_reports because it reflects the shared monthly reporting status.
+    if (monthlyReports && monthlyReports.length > 0) {
+      const totalClients = new Set<string>();
+      const submittedClients = new Set<string>();
+
+      monthlyReports.forEach((row) => {
+        if (clientId && row.client_id !== clientId) return;
+        totalClients.add(row.client_id);
+        const isSubmitted = row.income_tax_deductions_status === "ready" || row.national_insurance_deductions_status === "ready";
+        if (isSubmitted) submittedClients.add(row.client_id);
+      });
+
+      const total = totalClients.size;
+      const completed = submittedClients.size;
+      const percent = total ? Math.round((completed / total) * 100) : 0;
+      return { total, completed, percent };
+    }
+
+    // Fallback to deductions_report services when monthly_reports is unavailable.
+    const deductionRows = services.filter(
+      (item) =>
+        (!from || item.service_date >= from) &&
+        (!to || item.service_date <= to) &&
+        item.service_type === "deductions_report" &&
+        (!clientId || item.client_id === clientId),
+    );
+
+    const totalClients = new Set<string>();
+    const submittedClients = new Set<string>();
+    deductionRows.forEach((row) => {
+      totalClients.add(row.client_id);
+      if (row.status === "completed" || row.status === "ready") submittedClients.add(row.client_id);
+    });
+
+    const total = totalClients.size;
+    const completed = submittedClients.size;
+    const percent = total ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, percent };
+  }, [services, from, to, clientId, monthlyReports]);
 
   return (
     <main className={styles.page} dir="rtl">
@@ -96,41 +211,40 @@ export default function ReportsClient({
           <article className={`${styles.summary} ${styles.balance}`}><ReceiptText size={68} /><div><h2>סה״כ יתרת חשבון</h2><strong className={report.balance < 0 ? styles.negative : ""}>{money(report.balance)}</strong></div></article>
         </div>
 
-        <div className={styles.completionBlock}>
-          <article className={styles.completionCard}>
-            <header>
-              <div>
-                <h2>תמונת מצב דיווח מע״מ וניכויים</h2>
-                <p>כמה השתלם מתוך 100% הדיווחים המשמעותיים</p>
-              </div>
-              <span>{report.overallPercent}%</span>
-            </header>
-            <div className={styles.completionRows}>
-              <div className={styles.completionRow}>
-                <div>
-                  <strong>דיווח מע״מ</strong>
-                  <small>{report.vatRows.length ? `${report.vatCompleted}/${report.vatRows.length} הושלם` : "אין דיווחים"}</small>
-                </div>
-                <div className={styles.progressBar}><span style={{ width: `${report.vatPercent}%` }} /></div>
-                <strong>{report.vatPercent}%</strong>
-              </div>
-              <div className={styles.completionRow}>
-                <div>
-                  <strong>דיווח ניכויים</strong>
-                  <small>{report.deductionsRows.length ? `${report.deductionsCompleted}/${report.deductionsRows.length} הושלם` : "אין דיווחים"}</small>
-                </div>
-                <div className={styles.progressBar}><span style={{ width: `${report.deductionsPercent}%` }} /></div>
-                <strong>{report.deductionsPercent}%</strong>
-              </div>
-            </div>
-          </article>
-        </div>
-
         <div className={styles.panels}>
           <article className={styles.panel}><header><h2>צ׳קים שטרם נפרעו</h2><span>{report.checks.length}</span></header>{report.checks.length ? <div className={styles.list}>{report.checks.map((payment) => { const line = payment.payment_lines?.[0]; return <div className={styles.listRow} key={payment.id}><div><strong>{clientMap.get(payment.client_id) || "לקוח"}</strong><small>צ׳ק {line?.check_number || "ללא מספר"} · {line?.check_date ? date(line.check_date) : date(payment.payment_date)}</small></div><b>{money(Number(payment.total_amount))}</b></div>; })}</div> : <Empty icon={<ReceiptText />} text="אין צ׳קים להצגה" />}</article>
           <article className={styles.panel}><header><h2>התראות ועדכונים</h2><span>{report.alerts.length}</span></header>{report.alerts.length ? <div className={styles.list}>{report.alerts.map((service) => <div className={styles.listRow} key={service.id}><div><strong>{serviceLabels[service.service_type] || service.service_type}</strong><small>{clientMap.get(service.client_id) || "לקוח"} · {date(service.service_date)}</small></div><i>בטיפול</i></div>)}</div> : <Empty icon={<PackageOpen />} text="אין התראות חדשות" />}</article>
           <article className={styles.panel}><header><h2>גיבויי מערכת</h2><button type="button"><DatabaseBackup size={15} /> גבה נתונים</button></header><div className={styles.backups}><div><span>תאריך</span><span>שעה</span><span>בוצע ע״י</span></div><div><b>{date("2026-07-05")}</b><b>16:50</b><b>{userName}</b></div><div><b>{date("2026-06-27")}</b><b>18:15</b><b>מערכת</b></div></div></article>
         </div>
+
+        <section className={styles.clientVatSection}>
+          <header>
+            <h2>הגשת מע״מ וניכויים לחודש הנבחר</h2>
+            <p style={{ color: "#7f85a0", margin: 0 }}>הוגש / נדרש (ללא פירוט לפי לקוח)</p>
+          </header>
+          <div className={styles.clientVatList}>
+            {vatSubmissionSummary.total || deductionsSubmissionSummary.total ? (
+              <>
+                <div className={styles.clientVatRow}>
+                  <div className={styles.clientVatLeft}>
+                    <strong>מע״מ</strong>
+                    <small>{vatSubmissionSummary.completed}/{vatSubmissionSummary.total} לקוחות</small>
+                  </div>
+                  <div className={styles.clientVatBar}><span style={{ width: `${vatSubmissionSummary.percent}%` }} /></div>
+                  <div className={styles.clientVatPercent}>{vatSubmissionSummary.percent}%</div>
+                </div>
+                <div className={styles.clientVatRow}>
+                  <div className={styles.clientVatLeft}>
+                    <strong>ניכויים</strong>
+                    <small>{deductionsSubmissionSummary.completed}/{deductionsSubmissionSummary.total} לקוחות</small>
+                  </div>
+                  <div className={styles.clientVatBar}><span style={{ width: `${deductionsSubmissionSummary.percent}%` }} /></div>
+                  <div className={styles.clientVatPercent}>{deductionsSubmissionSummary.percent}%</div>
+                </div>
+              </>
+            ) : <Empty icon={<PackageOpen />} text="אין נתוני מע״מ להצגה" />}
+          </div>
+        </section>
 
         <section className={styles.feeSection}>
           <div className={styles.feeHeader}>
@@ -175,6 +289,7 @@ export default function ReportsClient({
             </ResponsiveContainer>
           </div>
         </section>
+
       </section>
     </main>
   );

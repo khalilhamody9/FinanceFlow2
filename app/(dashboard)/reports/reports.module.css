@@ -34,6 +34,17 @@
 .completionRow small { color: #7f85a0; font-size: 12px; }
 .progressBar { position: relative; height: 10px; border-radius: 999px; background: #f2f4fb; overflow: hidden; }
 .progressBar span { position: absolute; inset: 0; display: block; background: linear-gradient(90deg, #38bdf8, #2563eb); border-radius: 999px; }
+.clientVatSection { margin-bottom: 30px; background: #fff; border: 1px solid #e9eaf0; border-radius: 18px; padding: 18px; }
+.clientVatSection header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f0f1f6; }
+.clientVatSection header h2 { margin: 0; font-size: 16px; color: #44475e; }
+.clientVatList { padding: 12px 0; display: grid; gap: 10px; max-height: 260px; overflow: auto; }
+.clientVatRow { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.clientVatLeft { display:flex; flex-direction:column; gap:4px; }
+.clientVatRow strong { color:#232746; font-size:13px; }
+.clientVatRow small { color:#7e85a1; font-size:12px; }
+.clientVatPercent { min-width: 48px; text-align: right; font-weight:700; color:#2f64d6; }
+.clientVatBar { flex:1; height:10px; background:#f2f4fb; border-radius:999px; margin:0 12px; overflow:hidden; }
+.clientVatBar span { display:block; height:100%; background:linear-gradient(90deg,#38bdf8,#2563eb); border-radius:999px; }
 .panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
 .panel { min-height: 330px; overflow: hidden; background: #fff; border: 1px solid #e9eaf0; box-shadow: 0 9px 24px rgba(48, 53, 84, .06); }
 .panel header { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #e6e7ed; }

@@ -40,7 +40,11 @@ function StatusSelect({ value, onChange, label }: { value: Readiness; onChange: 
 
 export default function YearlyReportClient({ initialClients, initialReports, organizationId }: Props) {
   const supabase = useMemo(() => createClient(), []);
-  const [year, setYear] = useState("2026");
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return [String(currentYear), String(currentYear - 1), String(currentYear - 2)];
+  }, []);
+  const [year, setYear] = useState(yearOptions[0]);
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | ClientKind>("all");
   const initialStateMap = useMemo(() => Object.fromEntries(initialReports.map((report) => [`${report.client_id}-${report.reporting_year}`, { exemptDeclaration: report.exempt_declaration_status, capitalDeclaration: report.capital_declaration_status, annualReport: report.annual_report_status, balanceSheet: report.balance_sheet_status }])), [initialReports]);
@@ -56,6 +60,7 @@ export default function YearlyReportClient({ initialClients, initialReports, org
   }), [initialClients, search, kindFilter]);
 
   const allSelected = clients.length > 0 && clients.every((client) => selected.includes(client.id));
+
   async function setField(clientId: string, field: WorkField, value: Readiness) {
     const key = `${clientId}-${year}`;
     const next = { ...(states[key] || emptyState), [field]: value };
@@ -68,7 +73,7 @@ export default function YearlyReportClient({ initialClients, initialReports, org
   }
 
   return <main className={styles.page} dir="rtl"><section className={styles.card}>
-    <header className={styles.header}><div><p>דוחות / דיווח שנתי</p><h1>דיווח שנתי <span>| {year}</span></h1><small>מעקב אחר השלמת הדוחות השנתיים לפי סוג הלקוח</small></div><label className={styles.year}><span>שנת דיווח</span><select value={year} onChange={(event) => setYear(event.target.value)}><option>2026</option><option>2025</option><option>2024</option></select><ChevronDown size={16} /></label></header>
+    <header className={styles.header}><div><p>דוחות / דיווח שנתי</p><h1>דיווח שנתי <span>| {year}</span></h1><small>מעקב אחר השלמת הדוחות השנתיים לפי סוג הלקוח</small></div><label className={styles.year}><span>שנת דיווח</span><select value={year} onChange={(event) => setYear(event.target.value)}>{yearOptions.map((yearOption) => <option key={yearOption} value={yearOption}>{yearOption}</option>)}</select><ChevronDown size={16} /></label></header>
 
     <div className={styles.toolbar}><label className={styles.search}><Search size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="חיפוש לפי שם לקוח או מספר תיק..." /></label><div className={styles.tabs}>{([{ value: "all", label: "הכל" }, { value: "exempt", label: "עוסק פטור" }, { value: "licensed", label: "עוסק מורשה" }, { value: "company", label: "חברה" }] as const).map((tab) => <button key={tab.value} type="button" className={kindFilter === tab.value ? styles.activeTab : ""} onClick={() => setKindFilter(tab.value)}>{tab.label}</button>)}</div></div>
 

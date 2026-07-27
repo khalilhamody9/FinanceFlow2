@@ -203,8 +203,16 @@ export default function DashboardClient({
       .single();
 
     if (error) {
-      console.error("ADD TASK ERROR:", error);
-      setTaskError(`לא ניתן היה לשמור את המשימה: ${error.message}`);
+      const e: any = error;
+      const info = {
+        message: e?.message ?? e?.error ?? null,
+        details: e?.details ?? null,
+        hint: e?.hint ?? null,
+        code: e?.code ?? null,
+        status: e?.status ?? null,
+      };
+      console.error("ADD TASK ERROR:", info);
+      setTaskError(`לא ניתן היה לשמור את המשימה: ${info.message ?? "שגיאת שרת"}`);
       setIsAddingTask(false);
       return;
     }
@@ -255,8 +263,16 @@ export default function DashboardClient({
       .eq("organization_id", organizationId);
 
     if (error) {
-      console.error("UPDATE TASK ERROR:", error);
-      setTaskError(`לא ניתן היה לעדכן את המשימה: ${error.message}`);
+        const e: any = error;
+        const info = {
+          message: e?.message ?? e?.error ?? null,
+          details: e?.details ?? null,
+          hint: e?.hint ?? null,
+          code: e?.code ?? null,
+          status: e?.status ?? null,
+        };
+        console.error("UPDATE TASK ERROR:", info);
+        setTaskError(`לא ניתן היה לעדכן את המשימה: ${info.message ?? "שגיאת שרת"}`);
       setActiveTaskId(null);
       return;
     }
@@ -306,8 +322,16 @@ export default function DashboardClient({
       .eq("organization_id", organizationId);
 
     if (error) {
-      console.error("DELETE TASK ERROR:", error);
-      setTaskError(`לא ניתן היה למחוק את המשימה: ${error.message}`);
+        const e: any = error;
+        const info = {
+          message: e?.message ?? e?.error ?? null,
+          details: e?.details ?? null,
+          hint: e?.hint ?? null,
+          code: e?.code ?? null,
+          status: e?.status ?? null,
+        };
+        console.error("DELETE TASK ERROR:", info);
+        setTaskError(`לא ניתן היה למחוק את המשימה: ${info.message ?? "שגיאת שרת"}`);
       setActiveTaskId(null);
       return;
     }

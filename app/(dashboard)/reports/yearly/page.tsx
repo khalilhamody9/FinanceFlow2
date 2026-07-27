@@ -33,7 +33,11 @@ export default async function YearlyReportPage() {
 
   return (
     <DashboardShell userName={profile.full_name || user.email || "משתמש"}>
-      <YearlyReportClient initialClients={clients ?? []} initialReports={reports ?? []} organizationId={profile.organization_id} />
+      <YearlyReportClient
+        initialClients={clients ?? []}
+        initialReports={reports ?? []}
+        organizationId={profile.organization_id}
+      />
     </DashboardShell>
   );
 }

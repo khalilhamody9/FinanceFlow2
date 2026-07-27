@@ -125,7 +125,7 @@ export default async function DashboardPage() {
     ? employeeFallbackResult.error
     : null;
 
-  if (employeesError) console.error("EMPLOYEES ERROR:", employeesError);
+  if (employeesError) console.warn("EMPLOYEES ERROR:", employeesError);
 
   // 6. טעינת המשימות של המשרד
   let tasksQuery = supabase
@@ -138,8 +138,6 @@ export default async function DashboardPage() {
       due_date,
       assigned_to,
       created_by,
-      assignee:profiles!tasks_assigned_to_fkey(full_name),
-      creator:profiles!tasks_created_by_fkey(full_name),
       created_at
     `)
     .eq("organization_id", organizationId)
@@ -148,22 +146,47 @@ export default async function DashboardPage() {
     });
 
   if (!isManager) tasksQuery = tasksQuery.eq("assigned_to", user.id);
-  const { data: tasksData, error: tasksError } = await tasksQuery;
+  const { data: tasksDataRaw, error: tasksError } = await tasksQuery;
 
+  let tasksData: any[] = (tasksDataRaw as any[]) || [];
   if (tasksError) {
-    console.error("TASKS ERROR:", tasksError);
+    // Fallback to a minimal query in case some columns/policies fail in this environment.
+    let minimalQuery = supabase
+      .from("tasks")
+      .select("id,title,status,assigned_to,created_by,due_date,created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+
+    if (!isManager) minimalQuery = minimalQuery.eq("assigned_to", user.id);
+    const { data: fallbackData, error: fallbackError } = await minimalQuery;
+
+    if (fallbackError) {
+      const primaryMessage = String((tasksError as any)?.message ?? (tasksError as any)?.error ?? "unknown");
+      const fallbackMessage = String((fallbackError as any)?.message ?? (fallbackError as any)?.error ?? "unknown");
+      console.warn("TASKS LOAD FAILED; returning empty tasks list", { primaryMessage, fallbackMessage });
+      tasksData = [];
+    } else {
+      tasksData = fallbackData || [];
+      console.warn("TASKS primary query failed; using fallback query result", {
+        message: String((tasksError as any)?.message ?? (tasksError as any)?.error ?? "unknown"),
+      });
+    }
   }
 
   // התאמת המשימות למבנה של DashboardClient
+  const employeeNameById = new Map<string, string>(
+    (employeesData || []).map((employee: any) => [employee.id, cleanDisplayName(employee.full_name, "עובד")]),
+  );
+
   const initialTasks = (tasksData || []).map((task) => ({
     id: task.id,
     label: task.title,
     done: task.status === "done",
     dueDate: task.due_date,
     assignedTo: task.assigned_to,
-    assignedName: task.assignee?.[0]?.full_name || "עובד",
+    assignedName: task.assigned_to ? employeeNameById.get(task.assigned_to) || "עובד" : "עובד",
     creatorName: cleanDisplayName(
-      task.creator?.[0]?.full_name,
+      task.created_by ? employeeNameById.get(task.created_by) || null : null,
       task.created_by === user.id ? currentUserName : "מנהל המשרד",
     ),
   }));
@@ -171,7 +194,7 @@ export default async function DashboardPage() {
   const visibleTaskIds = (tasksData || []).map((task) => task.id);
   let historyQuery = supabase
     .from("task_history")
-    .select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)")
+    .select("id, task_id, task_title, action, details, created_at, performed_by")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(30);
@@ -179,10 +202,17 @@ export default async function DashboardPage() {
   const historyResult = !isManager && visibleTaskIds.length === 0
     ? { data: [], error: null }
     : await historyQuery;
-  const taskHistoryData = historyResult.data || [];
+  const taskHistoryData = (historyResult.data || []).map((entry: any) => ({
+    ...entry,
+    profiles: {
+      full_name: entry.performed_by ? employeeNameById.get(entry.performed_by) || null : null,
+    },
+  }));
   const taskHistoryError = historyResult.error;
 
-  if (taskHistoryError) console.error("TASK HISTORY ERROR:", taskHistoryError);
+  if (taskHistoryError) {
+    console.warn("TASK HISTORY ERROR:", String((taskHistoryError as any)?.message ?? "unknown"));
+  }
 
   return (
     <DashboardClient
