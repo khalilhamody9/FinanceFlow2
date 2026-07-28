@@ -21,6 +21,20 @@
 .payments { background: linear-gradient(135deg, #347fca, #57a3ea); }
 .balance { background: linear-gradient(135deg, #62bfe1, #92d8f1); }
 .summary .negative { color: #fff7fa; }
+.excelSection { margin-bottom: 30px; overflow: hidden; background: #fff; border: 1px solid #e9eaf0; border-radius: 24px; box-shadow: 0 9px 24px rgba(48, 53, 84, .06); }
+.excelSection header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 24px; border-bottom: 1px solid #eef0f5; }
+.excelSection header p { margin: 0 0 4px; color: #7f85a0; font-size: 12px; }
+.excelSection header h2 { margin: 0; color: #343650; font-size: 19px; }
+.excelSection header button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; color: #fff; background: #4d55e9; border: 0; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 700; }
+.excelSection header button:disabled { cursor: not-allowed; opacity: .45; }
+.excelTableWrap { overflow-x: auto; }
+.excelTable { width: 100%; min-width: 780px; border-collapse: collapse; text-align: right; }
+.excelTable th, .excelTable td { padding: 13px 18px; border-bottom: 1px solid #eff0f4; }
+.excelTable th { color: #61657d; background: #fafbfe; font-size: 12px; }
+.excelTable td { color: #4b4e65; font-size: 13px; }
+.excelTable td:nth-last-child(-n+3) { direction: ltr; text-align: right; white-space: nowrap; font-weight: 600; }
+.excelTable tbody tr:last-child td { border-bottom: 0; }
+.excelTable td.amountDue { color: #c23f5b; }
 .completionBlock { margin-bottom: 30px; }
 .completionCard { background: #fff; border: 1px solid #e9eaf0; border-radius: 24px; box-shadow: 0 11px 32px rgba(48, 53, 84, .08); overflow: hidden; }
 .completionCard header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 28px; border-bottom: 1px solid #f0f1f6; }
@@ -77,4 +91,4 @@
 .feeMetric span { color: #7e85a1; font-size: 13px; }
 .feeChart { width: 100%; min-height: 300px; }
 @media (max-width: 1100px) { .summaryGrid, .panels { grid-template-columns: 1fr 1fr; } .panels .panel:last-child { grid-column: 1 / -1; } }
-@media (max-width: 760px) { .page { padding: 20px 14px 40px; } .titleRow > span { display: none; } .filters, .summaryGrid, .panels { grid-template-columns: 1fr; gap: 14px; } .panels .panel:last-child { grid-column: auto; } .summary { min-height: 145px; padding: 24px; border-radius: 22px; } }
+@media (max-width: 760px) { .page { padding: 20px 14px 40px; } .titleRow > span { display: none; } .filters, .summaryGrid, .panels { grid-template-columns: 1fr; gap: 14px; } .panels .panel:last-child { grid-column: auto; } .summary { min-height: 145px; padding: 24px; border-radius: 22px; } .excelSection header { align-items: stretch; flex-direction: column; } .excelSection header button { justify-content: center; } }

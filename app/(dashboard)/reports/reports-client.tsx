@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, ChevronDown, DatabaseBackup, PackageOpen, ReceiptText, WalletCards, X } from "lucide-react";
+import { CalendarDays, ChevronDown, DatabaseBackup, Download, PackageOpen, ReceiptText, WalletCards, X } from "lucide-react";
 import styles from "./reports.module.css";
 import { createClient } from "@/lib/supabase/client";
 
@@ -25,6 +25,21 @@ function date(value: string) { return new Intl.DateTimeFormat("he-IL").format(ne
 const hebrewMonthShort = ["ינו","פבר","מרץ","אפר","מאי","יונ","יול","אוג","ספט","אוק","נוב","דצמ"];
 function monthName(monthIndex: number) { return hebrewMonthShort[monthIndex] || ""; }
 
+type MonthlyServiceRow = {
+  month: string;
+  client: string;
+  services: string;
+  charged: number;
+  paid: number;
+  balance: number;
+};
+
+function xmlEscape(value: string) {
+  return value.replace(/[<>&"']/g, (character) => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;", "'": "&apos;",
+  })[character] || character);
+}
+
 export default function ReportsClient({
   clients,
   payments,
@@ -37,6 +52,75 @@ export default function ReportsClient({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, name(client)])), [clients]);
+
+  const monthlyServiceRows = useMemo<MonthlyServiceRow[]>(() => {
+    const rows = new Map<string, { month: string; clientId: string; services: string[]; charged: number; paid: number }>();
+    const getRow = (month: string, rowClientId: string) => {
+      const key = `${month}:${rowClientId}`;
+      const existing = rows.get(key);
+      if (existing) return existing;
+      const created = { month, clientId: rowClientId, services: [] as string[], charged: 0, paid: 0 };
+      rows.set(key, created);
+      return created;
+    };
+
+    services
+      .filter((item) => item.status !== "cancelled" && (!from || item.service_date >= from) && (!to || item.service_date <= to) && (!clientId || item.client_id === clientId))
+      .forEach((service) => {
+        const row = getRow(service.service_date.slice(0, 7), service.client_id);
+        row.services.push(serviceLabels[service.service_type] || service.service_type);
+        row.charged += Number(service.price);
+      });
+
+    payments
+      .filter((item) => item.status !== "cancelled" && (!from || item.payment_date >= from) && (!to || item.payment_date <= to) && (!clientId || item.client_id === clientId))
+      .forEach((payment) => {
+        getRow(payment.payment_date.slice(0, 7), payment.client_id).paid += Number(payment.total_amount);
+      });
+
+    return Array.from(rows.values())
+      .map((row) => ({
+        month: row.month,
+        client: clientMap.get(row.clientId) || "לקוח ללא שם",
+        services: Array.from(new Set(row.services)).join(", ") || "ללא שירות שנרשם",
+        charged: row.charged,
+        paid: row.paid,
+        balance: row.charged - row.paid,
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month) || a.client.localeCompare(b.client, "he"));
+  }, [services, payments, from, to, clientId, clientMap]);
+
+  function downloadMonthlyServicesExcel() {
+    const headers = ["חודש", "לקוח", "שירותים", "חיוב", "שולם", "יתרה לתשלום"];
+    const bodyRows = monthlyServiceRows.map((row) => [
+      `<Cell><Data ss:Type="String">${xmlEscape(row.month)}</Data></Cell>`,
+      `<Cell><Data ss:Type="String">${xmlEscape(row.client)}</Data></Cell>`,
+      `<Cell><Data ss:Type="String">${xmlEscape(row.services)}</Data></Cell>`,
+      `<Cell ss:StyleID="Currency"><Data ss:Type="Number">${row.charged}</Data></Cell>`,
+      `<Cell ss:StyleID="Currency"><Data ss:Type="Number">${row.paid}</Data></Cell>`,
+      `<Cell ss:StyleID="Currency"><Data ss:Type="Number">${row.balance}</Data></Cell>`,
+    ].join(""));
+    const totals = monthlyServiceRows.reduce((sum, row) => ({
+      charged: sum.charged + row.charged,
+      paid: sum.paid + row.paid,
+      balance: sum.balance + row.balance,
+    }), { charged: 0, paid: 0, balance: 0 });
+    const workbook = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles><Style ss:ID="Default"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="11"/></Style><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#4D55E9" ss:Pattern="Solid"/></Style><Style ss:ID="Currency"><NumberFormat ss:Format="₪#,##0.00"/></Style><Style ss:ID="Total"><Font ss:Bold="1"/><Interior ss:Color="#EAF0FF" ss:Pattern="Solid"/><NumberFormat ss:Format="₪#,##0.00"/></Style></Styles>
+<Worksheet ss:Name="שירותים ותשלומים"><Table><Column ss:Width="85"/><Column ss:Width="170"/><Column ss:Width="300"/><Column ss:Width="95" ss:Span="2"/>
+<Row>${headers.map((header) => `<Cell ss:StyleID="Header"><Data ss:Type="String">${header}</Data></Cell>`).join("")}</Row>
+${bodyRows.map((row) => `<Row>${row}</Row>`).join("")}
+<Row><Cell ss:MergeAcross="2" ss:StyleID="Header"><Data ss:Type="String">סה״כ</Data></Cell><Cell ss:StyleID="Total"><Data ss:Type="Number">${totals.charged}</Data></Cell><Cell ss:StyleID="Total"><Data ss:Type="Number">${totals.paid}</Data></Cell><Cell ss:StyleID="Total"><Data ss:Type="Number">${totals.balance}</Data></Cell></Row>
+</Table></Worksheet></Workbook>`;
+    const url = URL.createObjectURL(new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `services-payments-${from || "all"}-${to || "all"}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   const report = useMemo(() => {
     const paymentRows = payments.filter((item) => (!from || item.payment_date >= from) && (!to || item.payment_date <= to) && (!clientId || item.client_id === clientId));
@@ -210,6 +294,21 @@ export default function ReportsClient({
           <article className={`${styles.summary} ${styles.payments}`}><WalletCards size={68} /><div><h2>סה״כ תשלומים</h2><strong>{money(report.paid)}</strong></div></article>
           <article className={`${styles.summary} ${styles.balance}`}><ReceiptText size={68} /><div><h2>סה״כ יתרת חשבון</h2><strong className={report.balance < 0 ? styles.negative : ""}>{money(report.balance)}</strong></div></article>
         </div>
+
+        <section className={styles.excelSection}>
+          <header>
+            <div><p>דוח חודשי</p><h2>שירותים, חיובים ותשלומים</h2></div>
+            <button type="button" onClick={downloadMonthlyServicesExcel} disabled={!monthlyServiceRows.length}><Download size={17} /> הורדת Excel</button>
+          </header>
+          <div className={styles.excelTableWrap}>
+            <table className={styles.excelTable}>
+              <thead><tr><th>חודש</th><th>לקוח</th><th>שירותים</th><th>חיוב</th><th>שולם</th><th>יתרה</th></tr></thead>
+              <tbody>{monthlyServiceRows.length ? monthlyServiceRows.map((row) => (
+                <tr key={`${row.month}-${row.client}`}><td>{row.month}</td><td>{row.client}</td><td>{row.services}</td><td>{money(row.charged)}</td><td>{money(row.paid)}</td><td className={row.balance > 0 ? styles.amountDue : ""}>{money(row.balance)}</td></tr>
+              )) : <tr><td colSpan={6}>אין נתונים בטווח שנבחר</td></tr>}</tbody>
+            </table>
+          </div>
+        </section>
 
         <div className={styles.panels}>
           <article className={styles.panel}><header><h2>צ׳קים שטרם נפרעו</h2><span>{report.checks.length}</span></header>{report.checks.length ? <div className={styles.list}>{report.checks.map((payment) => { const line = payment.payment_lines?.[0]; return <div className={styles.listRow} key={payment.id}><div><strong>{clientMap.get(payment.client_id) || "לקוח"}</strong><small>צ׳ק {line?.check_number || "ללא מספר"} · {line?.check_date ? date(line.check_date) : date(payment.payment_date)}</small></div><b>{money(Number(payment.total_amount))}</b></div>; })}</div> : <Empty icon={<ReceiptText />} text="אין צ׳קים להצגה" />}</article>

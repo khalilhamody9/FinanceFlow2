@@ -54,3 +54,4 @@
 @keyframes spin { to { transform: rotate(-360deg); } }
 @media (max-width: 1050px) { .headingRow { flex-direction: column; } .actions { padding: 0; } .filters { grid-template-columns: 1fr 1fr; } .search { grid-column: 1 / -1; } .primaryButton { min-height: 50px; } }
 @media (max-width: 700px) { .page { padding: 16px 12px 30px; } .card { padding: 20px 14px; border-radius: 18px; } .actions { width: 100%; overflow-x: auto; } .outlineButton { white-space: nowrap; } .filters { grid-template-columns: 1fr; } .search { grid-column: auto; } .footer { gap: 10px; flex-direction: column; } }
+.notRequired { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; padding: 7px 9px; color: #8b91a7; background: #f3f4f7; border-radius: 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }

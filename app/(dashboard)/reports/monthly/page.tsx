@@ -31,7 +31,7 @@ export default async function MonthlyReportPage() {
 
   const { data: reports, error: reportsError } = await supabase
     .from("monthly_reports")
-    .select("client_id, reporting_year, reporting_month, vat_status, income_tax_status, national_insurance_status, income_tax_deductions_status, national_insurance_deductions_status, fuel_refund_status, overall_status, assigned_to, notes")
+    .select("client_id, reporting_year, reporting_month, vat_status, income_tax_status, national_insurance_status, income_tax_deductions_status, national_insurance_deductions_status, semiannual_deductions_status, fuel_refund_status, overall_status, assigned_to, notes")
     .eq("organization_id", profile.organization_id);
 
   if (reportsError) console.error("MONTHLY REPORTS ERROR:", reportsError);

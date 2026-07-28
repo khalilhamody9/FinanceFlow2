@@ -29,12 +29,12 @@ type Client = {
 type StoredReport = {
   client_id: string; reporting_year: number; reporting_month: number; vat_status: Readiness; income_tax_status: Readiness;
   national_insurance_status: Readiness; income_tax_deductions_status: Readiness; national_insurance_deductions_status: Readiness;
-  fuel_refund_status: Readiness; overall_status: OverallStatus; assigned_to: string | null; notes: string | null;
+  semiannual_deductions_status: Readiness; fuel_refund_status: Readiness; overall_status: OverallStatus; assigned_to: string | null; notes: string | null;
 };
 type Props = { initialClients: Client[]; initialReports: StoredReport[]; organizationId: string };
 type Readiness = "ready" | "not-ready";
 type OverallStatus = "not-selected" | "ready" | "not-arrived" | "material" | "contacted" | "none";
-type WorkField = "vat" | "incomeTax" | "nationalInsurance" | "incomeTaxDeductions" | "nationalInsuranceDeductions" | "fuelRefund";
+type WorkField = "vat" | "incomeTax" | "nationalInsurance" | "incomeTaxDeductions" | "nationalInsuranceDeductions" | "semiannualDeductions" | "fuelRefund";
 type RowState = Record<WorkField, Readiness>;
 
 const workFields: WorkField[] = ["vat", "incomeTax", "nationalInsurance", "incomeTaxDeductions", "nationalInsuranceDeductions", "fuelRefund"];
@@ -44,8 +44,15 @@ const defaultRowState: RowState = {
   nationalInsurance: "not-ready",
   incomeTaxDeductions: "not-ready",
   nationalInsuranceDeductions: "not-ready",
+  semiannualDeductions: "not-ready",
   fuelRefund: "not-ready",
 };
+
+function requiredWorkFields(client: Client, reportMonth: number): WorkField[] {
+  return client.deductions_file && (reportMonth === 6 || reportMonth === 12)
+    ? [...workFields, "semiannualDeductions"]
+    : workFields;
+}
 const overallOptions: { value: OverallStatus; label: string }[] = [
   { value: "not-selected", label: "--בחר--" },
   { value: "ready", label: "מוכן" },
@@ -92,7 +99,7 @@ export default function MonthlyReportClient({ initialClients, initialReports, or
   const [reportType, setReportType] = useState("הכל");
   const [clientStatus, setClientStatus] = useState("פעילים");
   const [selected, setSelected] = useState<string[]>([]);
-  const initialStateMap = useMemo(() => Object.fromEntries(initialReports.map((report) => [`${report.client_id}-${report.reporting_year}-${report.reporting_month}`, { vat: report.vat_status, incomeTax: report.income_tax_status, nationalInsurance: report.national_insurance_status, incomeTaxDeductions: report.income_tax_deductions_status, nationalInsuranceDeductions: report.national_insurance_deductions_status, fuelRefund: report.fuel_refund_status }])), [initialReports]);
+  const initialStateMap = useMemo(() => Object.fromEntries(initialReports.map((report) => [`${report.client_id}-${report.reporting_year}-${report.reporting_month}`, { vat: report.vat_status, incomeTax: report.income_tax_status, nationalInsurance: report.national_insurance_status, incomeTaxDeductions: report.income_tax_deductions_status, nationalInsuranceDeductions: report.national_insurance_deductions_status, semiannualDeductions: report.semiannual_deductions_status, fuelRefund: report.fuel_refund_status }])), [initialReports]);
   const initialOverallMap = useMemo(() => Object.fromEntries(initialReports.map((report) => [`${report.client_id}-${report.reporting_year}-${report.reporting_month}`, report.overall_status])), [initialReports]);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>(initialStateMap);
   const [overallStates, setOverallStates] = useState<Record<string, OverallStatus>>(initialOverallMap);
@@ -119,15 +126,17 @@ export default function MonthlyReportClient({ initialClients, initialReports, or
     const key = stateKey(clientId);
     setSaving((current) => [...current, key]);
     setSaveError("");
-    const { error } = await supabase.from("monthly_reports").upsert({ organization_id: organizationId, client_id: clientId, reporting_year: reportYear, reporting_month: month, vat_status: row.vat, income_tax_status: row.incomeTax, national_insurance_status: row.nationalInsurance, income_tax_deductions_status: row.incomeTaxDeductions, national_insurance_deductions_status: row.nationalInsuranceDeductions, fuel_refund_status: row.fuelRefund, overall_status: overall, updated_at: new Date().toISOString() }, { onConflict: "organization_id,client_id,reporting_year,reporting_month" });
+    const { error } = await supabase.from("monthly_reports").upsert({ organization_id: organizationId, client_id: clientId, reporting_year: reportYear, reporting_month: month, vat_status: row.vat, income_tax_status: row.incomeTax, national_insurance_status: row.nationalInsurance, income_tax_deductions_status: row.incomeTaxDeductions, national_insurance_deductions_status: row.nationalInsuranceDeductions, semiannual_deductions_status: row.semiannualDeductions, fuel_refund_status: row.fuelRefund, overall_status: overall, updated_at: new Date().toISOString() }, { onConflict: "organization_id,client_id,reporting_year,reporting_month" });
     if (error) setSaveError(`השמירה נכשלה: ${error.message}`);
     setSaving((current) => current.filter((item) => item !== key));
   }
 
   const updateReadiness = (id: string, field: WorkField, value: Readiness) => {
     const key = stateKey(id);
+    const client = initialClients.find((item) => item.id === id);
     const nextRow = { ...(rowStates[key] || defaultRowState), [field]: value };
-    const nextOverall = workFields.every((item) => nextRow[item] === "ready") ? "ready" : overallStates[key] === "ready" ? "not-selected" : overallStates[key] || "not-selected";
+    const requiredFields = client ? requiredWorkFields(client, month) : workFields;
+    const nextOverall = requiredFields.every((item) => nextRow[item] === "ready") ? "ready" : overallStates[key] === "ready" ? "not-selected" : overallStates[key] || "not-selected";
     setRowStates((current) => ({
       ...current,
       [key]: nextRow,
@@ -176,13 +185,14 @@ export default function MonthlyReportClient({ initialClients, initialReports, or
           <table>
             <thead><tr>
               <th><input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="בחירת הכל" /></th>
-              <th>מס׳ תיק</th><th>שם לקוח</th><th>נייד</th><th>תיק מע״מ</th><th>תיק מס הכנסה</th><th>תיק ניכויים</th><th>מצב</th><th>מע״מ</th><th>מס הכנסה</th><th>ביטוח לאומי</th><th>מ״ה ניכויים</th><th>ב.ל ניכויים</th><th>החזר סולר</th><th>מטפל</th><th>הערות</th>
+              <th>מס׳ תיק</th><th>שם לקוח</th><th>נייד</th><th>תיק מע״מ</th><th>תיק מס הכנסה</th><th>תיק ניכויים</th><th>מצב</th><th>מע״מ</th><th>מס הכנסה</th><th>ביטוח לאומי</th><th>מ״ה ניכויים</th><th>ב.ל ניכויים</th><th>ניכויים חצי־שנתי</th><th>החזר סולר</th><th>מטפל</th><th>הערות</th>
             </tr></thead>
             <tbody>
               {filtered.map((client, index) => {
                 const key = stateKey(client.id);
                 const rowState = rowStates[key] || defaultRowState;
-                const allReady = workFields.every((field) => rowState[field] === "ready");
+                const semiannualRequired = Boolean(client.deductions_file) && (month === 6 || month === 12);
+                const allReady = requiredWorkFields(client, month).every((field) => rowState[field] === "ready");
                 const overallState = overallStates[key] || "not-selected";
                 return <tr key={client.id}>
                   <td><input type="checkbox" checked={selected.includes(client.id)} onChange={() => setSelected((value) => value.includes(client.id) ? value.filter((id) => id !== client.id) : [...value, client.id])} aria-label={`בחירת ${clientName(client)}`} /></td>
@@ -196,6 +206,7 @@ export default function MonthlyReportClient({ initialClients, initialReports, or
                   <td><ReadinessSelect value={rowState.nationalInsurance} onChange={(value) => updateReadiness(client.id, "nationalInsurance", value)} label={`ביטוח לאומי עבור ${clientName(client)}`} /></td>
                   <td><ReadinessSelect value={rowState.incomeTaxDeductions} onChange={(value) => updateReadiness(client.id, "incomeTaxDeductions", value)} label={`מ״ה ניכויים עבור ${clientName(client)}`} /></td>
                   <td><ReadinessSelect value={rowState.nationalInsuranceDeductions} onChange={(value) => updateReadiness(client.id, "nationalInsuranceDeductions", value)} label={`ב.ל ניכויים עבור ${clientName(client)}`} /></td>
+                  <td>{semiannualRequired ? <ReadinessSelect value={rowState.semiannualDeductions} onChange={(value) => updateReadiness(client.id, "semiannualDeductions", value)} label={`ניכויים חצי־שנתי עבור ${clientName(client)}`} /> : <span className={styles.notRequired}>לא נדרש</span>}</td>
                   <td><ReadinessSelect value={rowState.fuelRefund} onChange={(value) => updateReadiness(client.id, "fuelRefund", value)} label={`החזר סולר עבור ${clientName(client)}`} /></td>
                   <td><button type="button" className={styles.handler}>לא משויך <ChevronDown size={13} /></button></td>
                   <td><button type="button" className={styles.notes} title={client.notes || "הוספת הערה"}><FileText size={17} />{saving.includes(key) ? "שומר..." : client.notes ? "צפייה" : "הערה"}</button></td>
