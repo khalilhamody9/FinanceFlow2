@@ -110,15 +110,6 @@ const actionLabels: Record<string, string> = {
   deleted: "נמחקה",
 };
 
-function getPerformedByName(entry: TaskHistory) {
-  const profile = Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles;
-  return safeName(profile?.full_name ?? null, "משתמש");
-}
-
-function getActivitySummary(entry: TaskHistory) {
-  return `${actionLabels[entry.action] || entry.action} ${entry.task_title}`;
-}
-
 // נתוני ברירת מחדל להדגמה - להחליף בנתונים אמיתיים כשיהיה מקור נתונים
 const DEFAULT_MONTHLY_CLIENTS: MonthlyClientsPoint[] = [
   { month: "פבר׳", clients: 18 },
@@ -165,11 +156,6 @@ export default function DashboardClient({
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [taskError, setTaskError] = useState("");
   const isManager = ["ADMIN", "MANAGER"].includes(userRole.toUpperCase());
-  const [activityLog, setActivityLog] = useState<TaskHistory[]>(initialTaskHistory.slice(0, 10));
-  const [showActivityLog, setShowActivityLog] = useState(true);
-
-  // removed today tasks and activity log from dashboard home per request
-
   async function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -232,7 +218,6 @@ export default function DashboardClient({
     const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: data.id, task_title: cleanTask, action: "created", details: historyDetails, performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
     if (historyEntry) {
       setTaskHistory((current) => [historyEntry, ...current]);
-      setActivityLog((current) => [historyEntry, ...current].slice(0, 10));
     }
 
     setTasks((currentTasks) => [createdTask, ...currentTasks]);
@@ -292,7 +277,6 @@ export default function DashboardClient({
     const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: task.id, task_title: task.label, action, performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
     if (historyEntry) {
       setTaskHistory((current) => [historyEntry, ...current]);
-      setActivityLog((current) => [historyEntry, ...current].slice(0, 10));
     }
 
     setActiveTaskId(null);
@@ -311,7 +295,6 @@ export default function DashboardClient({
       const { data: historyEntry } = await supabase.from("task_history").insert({ organization_id: organizationId, task_id: task.id, task_title: task.label, action: "deleted", performed_by: userId }).select("id, task_id, task_title, action, details, created_at, profiles!task_history_performed_by_fkey(full_name)").single();
       if (historyEntry) {
         setTaskHistory((current) => [{ ...historyEntry, task_id: null }, ...current]);
-        setActivityLog((current) => [{ ...historyEntry, task_id: null }, ...current].slice(0, 10));
       }
     }
 
@@ -580,74 +563,6 @@ export default function DashboardClient({
         </div>
 
         {/* today tasks and small mini-calendar removed from dashboard home per request */}
-
-        {/* יומן פעילות */}
-        <section
-          className="mb-6 rounded-[18px] bg-white p-5 shadow-[0_14px_40px_rgba(9,30,66,.06)]"
-          style={{ border: `1px solid ${BORDER}` }}
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: INK }}>
-                יומן פעילות
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: SLATE }}>
-                המעדכן האחרון של הפעולות של העובדים בדשבורד.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowActivityLog((value) => !value)}
-              className="dash-focusable rounded-xl px-4 py-2 text-sm font-semibold"
-              style={{
-                color: INDIGO,
-                background: "#F1F3FF",
-              }}
-            >
-              {showActivityLog ? "הסתר יומן" : "הצג יומן"}
-            </button>
-          </div>
-
-          {showActivityLog ? (
-            <div className="space-y-3">
-              {activityLog.length === 0 ? (
-                <div className="rounded-2xl bg-[#F4F4FF] p-4 text-sm" style={{ color: MUTE }}>
-                  עדיין לא בוצעו פעולות יומן.
-                </div>
-              ) : (
-                activityLog.map((entry) => {
-                  const entryAction = getActivitySummary(entry);
-                  return (
-                    <div key={entry.id} className="rounded-2xl border p-4" style={{ borderColor: BORDER }}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold" style={{ color: INK }}>
-                            {entryAction}
-                          </p>
-                          <p className="mt-1 text-xs" style={{ color: SLATE }}>
-                            על ידי {getPerformedByName(entry)}
-                          </p>
-                        </div>
-                        <time className="shrink-0 text-[11px]" style={{ color: MUTE }}>
-                          {new Intl.DateTimeFormat("he-IL", {
-                            dateStyle: "short",
-                            timeStyle: "short",
-                          }).format(new Date(entry.created_at))}
-                        </time>
-                      </div>
-                      {entry.details ? (
-                        <p className="mt-3 text-sm" style={{ color: SLATE }}>
-                          {entry.details}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          ) : null}
-        </section>
 
         {/* מדדים */}
         <div className="mb-9 grid grid-cols-2 gap-4 lg:grid-cols-4">

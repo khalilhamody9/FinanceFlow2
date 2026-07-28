@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "../components/dashboard-shell";
 import { createClient } from "@/lib/supabase/client";
+import ClientsImport from "./clients-import";
 import {
   Search,
   Plus,
@@ -603,6 +604,12 @@ const filteredCustomers = useMemo(() => {
                 <ClipboardList size={16} />
                 הוספת שירות גורף
               </button>
+
+              <ClientsImport
+                organizationId={organizationId}
+                existingBusinessNumbers={customers.map((customer) => customer.business_number || "")}
+                onImported={loadCustomers}
+              />
 
               <button
                 type="button"
